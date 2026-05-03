@@ -1,0 +1,32 @@
+{
+  "name": "visitation_api",
+  "version": "1.0.0",
+  "description": "Visitation API for Markaz List",
+  "main": "visitation_api.js",
+  "scripts": {
+    "start": "nodemon visitation_api.js",
+    "dev": "cross-env NODE_ENV=local nodemon visitation_api.js",
+    "prod": "cross-env NODE_ENV=production node visitation_api.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Akif",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mongodb": "^6.6.2",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "cross-env": "^7.0.3"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "data/*"
+    ],
+    "watch": [
+      "visitation_api.js"
+    ]
+  }
+}

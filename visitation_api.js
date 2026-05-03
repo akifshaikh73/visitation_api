@@ -1,0 +1,257 @@
+const e = require('express');
+const express = require('express');
+const MongoClient = require('mongodb').MongoClient;
+const process = require('process');
+const path = require('path');
+
+// Load environment variables from .env.local or .env.production based on NODE_ENV
+const env = process.env.NODE_ENV || 'local';
+require('dotenv').config({ path: path.resolve(__dirname, `.env.${env}`) });
+
+const app = express();
+const cors = require('cors');
+app.use(cors());
+app.use(express.json());
+
+
+exclusions= { sequenceNumber: 0, _class: 0 ,listingSource : 0, deliverycode:0};
+
+const connectionstring = process.env.MONGODB_URI || 'mongodb://localhost:27017/listingdb';
+
+console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`Using MongoDB: ${process.env.NODE_ENV === 'local' ? 'Local' : 'Remote'}`);
+console.log(`Connection string: ${connectionstring}`);
+
+const dbconnect = MongoClient.connect(connectionstring, {
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 3000,
+
+});
+
+const addressRouter = express.Router(); // Create a new Router
+
+addressRouter.route('/addressList/search/:id').get((req, res, next) => {
+  const id = req.params.id;
+  console.log(`searching ${id}`);
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const address = listingdb.collection('listings').findOne({ _id: id });
+    console.log(address.length);
+    return address;
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+addressRouter.route('/addressList/search/city/:city').get((req, res, next) => {
+  const city = req.params.city;
+  console.log(`searching city ${city}`);
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const regex = new RegExp(city, 'i');
+    const address = listingdb.collection('listings').find({
+      city: regex
+    }, { projection: exclusions}
+    ).toArray();
+    return address;
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+
+addressRouter.route('/addressList/search/name/:name').get((req, res, next) => {
+  const name = req.params.name;
+  console.log(`searching name  ${name}`);
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const regex = new RegExp(name, 'i');
+    const address = listingdb.collection('listings').find({
+      $or: [{ lastName: regex }, { firstName: regex }]
+    }).toArray();
+    return address;
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+addressRouter.route('/addressList/search/address/:address').get((req, res, next) => {
+  const address = req.params.address;
+  console.log(`searching  address ${address}`);
+  const regex = new RegExp(address, 'i');
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const address = listingdb.collection('listings').find({
+      $or:
+        [
+          { address1: regex },
+          { address2: regex }
+        ]
+    }).toArray();
+    console.log(address.length);
+    return address;
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+addressRouter.route('/addressList/filter/students/').get((req, res, next) => {
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const address = listingdb.collection('listings').find({ students: { $exists: true, $ne: [] } },{projection: exclusions}).toArray();
+    return address;
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+
+addressRouter.route('/addressList/filter/inactive/').get((req, res, next) => {
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const address = listingdb.collection('listings').find({ inactive: true }).toArray();
+    return address;
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+
+addressRouter.route('/closeDB').get((req, res, next) => {
+  dbconnect.then(client => {
+    client.close();
+    res.json({ message: "Database connection closed" });
+  }).catch(err => {
+    next(err);
+  });
+});
+
+addressRouter.route('/addressList/:id').put((req, res, next) => {
+  const id = req.params.id;
+  const { firstName, lastName } = req.body;
+  console.log(`updating ${id} ${firstName} ${lastName}`);
+
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    listingdb.collection('listings').updateOne(
+      { _id: id },
+      { $set: { firstName: firstName, lastName: lastName } }
+    ).then(result => {
+      res.json(result);
+    }).catch(err => {
+      next(err);
+    });
+  });
+});
+addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
+  console.log(req.body);
+  const searchCriteria = req.body;
+  nameRegex = new RegExp(searchCriteria.name, 'i');
+  addressRegex = new RegExp(searchCriteria.address, 'i');
+  const masjid_id = parseInt(searchCriteria.masjidId);
+  const unit_id = parseInt(searchCriteria.unitId);
+  const city_regex = new RegExp(searchCriteria.city, 'i');
+  const _id = searchCriteria._id;
+
+  // if _id is passed then ignore all other search criteria
+  if (_id) {
+    console.log(`searching ${_id}`);
+    dbconnect.then(client => {
+      let listingdb = client.db('listingdb');
+      const address = listingdb.collection('listings').find({ _id: _id }).toArray();
+      console.log(address.length);
+      return address;
+    }).then(result => {
+      res.json(result);
+    }).catch(err => {
+      next(err);
+    });
+    return;
+  }
+
+  console.log(`searching ${masjid_id} ${unit_id} ${nameRegex} ${addressRegex} ${city_regex}`);
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const address = listingdb.collection('listings').find({
+      $and: [
+        {
+          $or: [
+            { lastName: nameRegex },
+            { firstName: nameRegex }
+          ]
+        },
+        {
+          $or: [
+            { address1: addressRegex },
+            { address2: addressRegex }
+          ]
+        }, {
+          $and: [
+            { masjidId: masjid_id },
+            { unitId: unit_id },
+            { inactive: false}
+          ]
+        },{
+          city: city_regex
+        }
+      ]
+    },{projection : exclusions}).toArray();
+    console.log(address.length);
+    return address;
+
+  }).then(result => {
+    console.log(`return ${masjid_id} ${unit_id} ${result.length} records`);
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  })
+});
+
+addressRouter.get('/addressList/list/', (req, res, next) => { // Handle GET requests to /api/addressList
+  const { masjid_id, unit_id } = req.query;
+  console.log(`searching ${masjid_id} ${unit_id}`);
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    const address = listingdb.collection('listings').find({ 
+      masjidId: parseInt(masjid_id), unitId: parseInt(unit_id) , inactive: false
+    }).toArray();
+    console.log(address.length);
+    address.then(result => {
+      console.log(`found ${result.length} addressList`);
+      res.json(result);
+    });
+  }).catch(err => {
+    next(err);
+  });
+});
+
+app.use('/api', addressRouter); // Add the Router to the application
+
+app.use((err, req, res, next) => {
+  console.error(`Error: ${err}`);
+  res.status(500).json({ error: err.message });
+});
+
+const port = process.env.PORT || 3000;
+
+process.on('SIGINT', () => {
+  console.log('Shutting down');
+  dbconnect.then(client => {
+    client.close();
+  });
+  process.exit();
+});
+
+app.listen(3000, () => console.log('Server is running on port 3000'));
