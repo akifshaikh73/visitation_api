@@ -155,6 +155,8 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
     });
   });
 });
+
+
 addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
   console.log(req.body);
   const searchCriteria = req.body;
@@ -237,6 +239,43 @@ addressRouter.get('/addressList/list/', (req, res, next) => { // Handle GET requ
   });
 });
 
+addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
+  const id = req.params.id;
+  const { lastmodifieddate, response, comment } = req.body;
+
+  const modifiedDate = lastmodifieddate ? new Date(lastmodifieddate) : new Date();
+
+  const visitEntry = {
+    createdDate: modifiedDate,
+    comments: comment,
+    response: response
+  };
+
+  if (!visitEntry.response) {
+    return res.status(400).json({ error: 'visitEntry with a response field is required' });
+  }
+
+  console.log(`updateVisit ${id}`);
+
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    return listingdb.collection('listings').updateOne(
+      { _id: id },
+      {
+        $set: {
+          lastModifiedDate: modifiedDate,
+          latestResponse: visitEntry.response
+        },
+        $push: { visitHistory: visitEntry }
+      }
+    );
+  }).then(result => {
+    res.json(result);
+  }).catch(err => {
+    next(err);
+  });
+});
+
 app.use('/api', addressRouter); // Add the Router to the application
 
 app.use((err, req, res, next) => {
@@ -254,4 +293,13 @@ process.on('SIGINT', () => {
   process.exit();
 });
 
-app.listen(3000, () => console.log('Server is running on port 3000'));
+app.listen(3000, () => {
+  console.log('Server is running on port 3000');
+  console.log('\nRegistered routes:');
+  addressRouter.stack
+    .filter(r => r.route)
+    .forEach(r => {
+      const methods = Object.keys(r.route.methods).map(m => m.toUpperCase()).join(', ');
+      console.log(`  ${methods.padEnd(6)} /api${r.route.path}`);
+    });
+});

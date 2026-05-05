@@ -1,0 +1,217 @@
+@baseUrl = http://localhost:3000/api
+#@baseUrl=https://visitation-api.onrender.com/api
+@contentType = application/json
+@masjidID = 156
+@addressID = 90953
+
+###
+### SEARCH ENDPOINTS
+###
+
+### 1. Search by ID
+GET {{baseUrl}}/addressList/search/27562
+
+### 2. Search by City (case-insensitive)
+GET {{baseUrl}}/addressList/search/city/NewYork
+
+### 3. Search by City - lowercase
+GET {{baseUrl}}/addressList/search/city/newyork
+
+### 4. Search by First Name
+GET {{baseUrl}}/addressList/search/name/akif
+
+### 5. Search by Last Name (case-insensitive)
+GET {{baseUrl}}/addressList/search/name/imam
+
+### 6. Search by Address
+GET {{baseUrl}}/addressList/search/address/lloyd
+
+### 7. Search by Address - partial
+GET {{baseUrl}}/addressList/search/address/street
+
+###
+### FILTER ENDPOINTS
+###
+
+### 8. Filter - Get listings with students
+GET {{baseUrl}}/addressList/filter/students/
+
+### 9. Filter - Get inactive listings
+GET {{baseUrl}}/addressList/filter/inactive/
+
+###
+### LIST ENDPOINTS
+###
+
+### 10. Get listings by Masjid and Unit
+GET {{baseUrl}}/addressList/list/?masjid_id={{masjidID}}&unit_id=1
+
+### 11. Get listings with different IDs
+GET {{baseUrl}}/addressList/list/?masjid_id=2&unit_id=3
+
+###
+### ADVANCED SEARCH (POST)
+###
+
+### 12. Filter search - by name only
+POST {{baseUrl}}/addressList/filter/search
+Content-Type: {{contentType}}
+
+{
+  "name": "john",
+  "address": "",
+  "city": "",
+  "masjidId": 0,
+  "unitId": 0
+}
+
+### 13. Filter search - by city only
+POST {{baseUrl}}/addressList/filter/search
+Content-Type: {{contentType}}
+
+{
+  "name": "",
+  "address": "",
+  "city": "NewYork",
+  "masjidId": 0,
+  "unitId": 0
+}
+
+### 14. Filter search - by Masjid and Unit
+POST {{baseUrl}}/addressList/filter/search
+Content-Type: {{contentType}}
+
+{
+  "name": "",
+  "address": "",
+  "city": "",
+  "masjidId": {{masjidID}},
+  "unitId": 1
+}
+
+### 15. Filter search - advanced (all criteria)
+POST {{baseUrl}}/addressList/filter/search
+Content-Type: {{contentType}}
+
+{
+  "name": "john",
+  "address": "main",
+  "city": "newyork",
+  "masjidId": {{masjidID}},
+  "unitId": 1
+}
+
+### 16. Filter search - by ID only (overrides others)
+POST {{baseUrl}}/addressList/filter/search
+Content-Type: {{contentType}}
+
+{
+  "name": "ignored",
+  "address": "ignored",
+  "city": "ignored",
+  "masjidId": 999,
+  "unitId": 999,
+  "_id": "specific_id_here"
+}
+
+###
+### UPDATE ENDPOINTS
+###
+
+### 17. Update listing - change name
+PUT {{baseUrl}}/addressList/{{addressID}}
+Content-Type: {{contentType}}
+
+{
+  "firstName": "UpdatedFirstName",
+  "lastName": "UpdatedLastName"
+}
+
+### 18. Update listing - another ID
+PUT {{baseUrl}}/addressList/another_id
+Content-Type: {{contentType}}
+
+{
+  "firstName": "John",
+  "lastName": "Smith"
+}
+
+###
+### ERROR/EDGE CASES
+###
+
+### 19. Update visit - add visit entry
+PUT {{baseUrl}}/addressList/visit/{{addressID}}
+Content-Type: {{contentType}}
+
+{
+  "lastmodifieddate": "2026-05-04T00:00:00.000Z",
+  "comment": "Family was home, had a good conversation.",
+  "response": "Left Message"
+}  
+
+### 20. Update visit - missing response (expect 400)
+PUT {{baseUrl}}/addressList/visit/27562
+Content-Type: {{contentType}}
+
+{
+  "lastmodifieddate": "2026-05-04T00:00:00.000Z",
+    "response": "Met",
+    "comment": "Friendly"
+}
+
+###
+### ERROR/EDGE CASES
+###
+
+### 21. Search - empty/non-existent ID
+GET {{baseUrl}}/addressList/search/nonexistent_id_xyz
+
+### 22. Search city - no results
+GET {{baseUrl}}/addressList/search/city/UnknownCity999
+
+### 23. Search name - no results
+GET {{baseUrl}}/addressList/search/name/ZzzUnknownName999
+
+### 24. Filter search - empty criteria
+POST {{baseUrl}}/addressList/filter/search
+Content-Type: {{contentType}}
+
+{
+  "name": "",
+  "address": "",
+  "city": "",
+  "masjidId": 0,
+  "unitId": 0
+}
+
+### 25. List - invalid masjid_id
+GET {{baseUrl}}/addressList/list/?masjid_id=99999&unit_id=1
+
+###
+### DATABASE MANAGEMENT
+###
+
+### 26. Close database connection
+GET {{baseUrl}}/closeDB
+
+###
+### TESTING NOTES
+###
+# 
+# Run these tests with VS Code REST Client extension
+# Click "Send Request" above each test to execute
+#
+# Expected Responses:
+# - Search endpoints: 200 OK with listing object or null
+# - Filter endpoints: 200 OK with array of listings
+# - List endpoint: 200 OK with array filtered by masjid/unit
+# - Update endpoint: 200 OK with update result
+# - Close DB: 200 OK with success message
+#
+# For best results:
+# 1. Make sure server is running: npm run dev
+# 2. Use local MongoDB or ensure remote connection works
+# 3. Adjust IDs to match actual data in your database
+# 4. Check console logs for MongoDB connection details
+#
