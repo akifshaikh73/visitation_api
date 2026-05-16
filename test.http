@@ -185,14 +185,17 @@ Content-Type: {{contentType}}
   "unitId": 0
 }
 
-### 25. List - invalid masjid_id
+### 28. List - invalid masjid_id
 GET {{baseUrl}}/addressList/list/?masjid_id=99999&unit_id=1
 
 ###
 ### DATABASE MANAGEMENT
 ###
 
-### 26. Close database connection
+### 26. Check database status (local or remote)
+GET {{baseUrl}}/dbStatus
+
+### 27. Close database connection
 GET {{baseUrl}}/closeDB
 
 ###

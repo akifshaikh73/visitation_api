@@ -276,6 +276,16 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
   });
 });
 
+addressRouter.route('/dbStatus').get((req, res) => {
+  const mongoUri = process.env.MONGODB_URI || '';
+  const isLocal = mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1');
+  const dbType = isLocal ? 'local' : 'remote';
+  console.log(`Database Status Check: ${dbType}`);
+  res.json({ 
+    dbStatus: dbType
+  });
+});
+
 app.use('/api', addressRouter); // Add the Router to the application
 
 app.use((err, req, res, next) => {
