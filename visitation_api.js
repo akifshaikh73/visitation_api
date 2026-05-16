@@ -149,8 +149,10 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
       { _id: id },
       { $set: { firstName: firstName, lastName: lastName } }
     ).then(result => {
+      console.log(`updateListing ${id} - matched: ${result.matchedCount}, modified: ${result.modifiedCount}`);
       res.json(result);
     }).catch(err => {
+      console.error(`updateListing ${id} error: ${err.message}`);
       next(err);
     });
   });
@@ -255,7 +257,7 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
     return res.status(400).json({ error: 'visitEntry with a response field is required' });
   }
 
-  console.log(`updateVisit ${id}`);
+  console.log(`updateVisit ${id} - response: ${visitEntry.response}, date: ${modifiedDate}`);
 
   dbconnect.then(client => {
     let listingdb = client.db('listingdb');
@@ -270,8 +272,10 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
       }
     );
   }).then(result => {
+    console.log(`updateVisit ${id} - matched: ${result.matchedCount}, modified: ${result.modifiedCount}`);
     res.json(result);
   }).catch(err => {
+    console.error(`updateVisit ${id} error: ${err.message}`);
     next(err);
   });
 });
