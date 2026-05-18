@@ -162,12 +162,16 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
 addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
   console.log(req.body);
   const searchCriteria = req.body;
-  nameRegex = new RegExp(searchCriteria.name, 'i');
-  addressRegex = new RegExp(searchCriteria.address, 'i');
+  const nameRegex = new RegExp(searchCriteria.name || '', 'i');
+  const addressRegex = new RegExp(searchCriteria.address || '', 'i');
   const masjid_id = parseInt(searchCriteria.masjidId);
   const unit_id = parseInt(searchCriteria.unitId);
-  const city_regex = new RegExp(searchCriteria.city, 'i');
+  const city_regex = new RegExp(searchCriteria.city || '', 'i');
   const _id = searchCriteria._id;
+
+  // Optional filter parameters
+  const showInactive = searchCriteria.showInactive === true;
+  const filterByStudents = searchCriteria.filterByStudents || 'all'; // 'all', 'has', 'none'
 
   // if _id is passed then ignore all other search criteria
   if (_id) {
@@ -185,33 +189,47 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
     return;
   }
 
-  console.log(`searching ${masjid_id} ${unit_id} ${nameRegex} ${addressRegex} ${city_regex}`);
+  console.log(`searching ${masjid_id} ${unit_id} ${nameRegex} ${addressRegex} ${city_regex} showInactive=${showInactive} filterByStudents=${filterByStudents}`);
   dbconnect.then(client => {
     let listingdb = client.db('listingdb');
+
+    const queryConditions = [
+      {
+        $or: [
+          { lastName: nameRegex },
+          { firstName: nameRegex }
+        ]
+      },
+      {
+        $or: [
+          { address1: addressRegex },
+          { address2: addressRegex }
+        ]
+      },
+      {
+        $and: [
+          { masjidId: masjid_id },
+          { unitId: unit_id }
+        ]
+      },
+      { city: city_regex }
+    ];
+
+    // Active/inactive filter (default: only active records)
+    if (showInactive) {
+      queryConditions.push({ inactive: true });
+    } else {
+      queryConditions.push({ inactive: { $ne: true } });
+    }
+
+    // Students filter
+    if (filterByStudents === true || filterByStudents === 'true') {
+      queryConditions.push({ students: { $exists: true, $ne: [] } });
+    }
+
     const address = listingdb.collection('listings').find({
-      $and: [
-        {
-          $or: [
-            { lastName: nameRegex },
-            { firstName: nameRegex }
-          ]
-        },
-        {
-          $or: [
-            { address1: addressRegex },
-            { address2: addressRegex }
-          ]
-        }, {
-          $and: [
-            { masjidId: masjid_id },
-            { unitId: unit_id },
-            { inactive: false}
-          ]
-        },{
-          city: city_regex
-        }
-      ]
-    },{projection : exclusions}).toArray();
+      $and: queryConditions
+    }, { projection: exclusions }).toArray();
     console.log(address.length);
     return address;
 
