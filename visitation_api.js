@@ -140,21 +140,62 @@ addressRouter.route('/closeDB').get((req, res, next) => {
 
 addressRouter.route('/addressList/:id').put((req, res, next) => {
   const id = req.params.id;
-  const { firstName, lastName } = req.body;
-  console.log(`updating ${id} ${firstName} ${lastName}`);
+  const { firstName, lastName, unitId } = req.body;
+  console.log(`updating ${id} ${firstName} ${lastName} unitId=${unitId}`);
 
-  dbconnect.then(client => {
+  dbconnect.then(async client => {
     let listingdb = client.db('listingdb');
-    listingdb.collection('listings').updateOne(
+    const listings = listingdb.collection('listings');
+
+    const currentListing = await listings.findOne(
       { _id: id },
-      { $set: { firstName: firstName, lastName: lastName } }
-    ).then(result => {
-      console.log(`updateListing ${id} - matched: ${result.matchedCount}, modified: ${result.modifiedCount}`);
-      res.json(result);
-    }).catch(err => {
-      console.error(`updateListing ${id} error: ${err.message}`);
-      next(err);
-    });
+      { projection: { unitId: 1, firstName: 1, lastName: 1 } }
+    );
+    if (!currentListing) {
+      res.status(404).json({ error: `Listing ${id} not found` });
+      return null;
+    }
+
+    const setFields = {};
+
+    if (firstName !== undefined && firstName !== null && firstName !== '' && firstName !== currentListing.firstName) {
+      setFields.firstName = firstName;
+    }
+
+    if (lastName !== undefined && lastName !== null && lastName !== '' && lastName !== currentListing.lastName) {
+      setFields.lastName = lastName;
+    }
+
+    if (unitId !== undefined && unitId !== null && unitId !== '') {
+      const nextUnitId = parseInt(unitId, 10);
+      if (Number.isNaN(nextUnitId)) {
+        res.status(400).json({ error: 'unitId must be a valid integer' });
+        return null;
+      }
+
+      if (currentListing.unitId !== nextUnitId) {
+        setFields.unitId = nextUnitId;
+        console.log(`unitId changed for ${id}: ${currentListing.unitId} -> ${nextUnitId}`);
+      }
+    }
+
+    if (Object.keys(setFields).length === 0) {
+      return { acknowledged: true, matchedCount: 1, modifiedCount: 0 };
+    }
+
+    return listings.updateOne(
+      { _id: id },
+      { $set: setFields }
+    );
+  }).then(result => {
+    if (!result) {
+      return;
+    }
+    console.log(`updateListing ${id} - matched: ${result.matchedCount}, modified: ${result.modifiedCount}`);
+    res.json(result);
+  }).catch(err => {
+    console.error(`updateListing ${id} error: ${err.message}`);
+    next(err);
   });
 });
 

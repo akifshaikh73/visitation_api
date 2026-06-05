@@ -6,6 +6,7 @@
   "scripts": {
     "start": "nodemon visitation_api.js",
     "dev": "cross-env NODE_ENV=local nodemon visitation_api.js",
+    "local": "cross-env NODE_ENV=local nodemon visitation_api.js",
     "prod": "cross-env NODE_ENV=production node visitation_api.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
