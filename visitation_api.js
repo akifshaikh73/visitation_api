@@ -234,6 +234,14 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
   dbconnect.then(client => {
     let listingdb = client.db('listingdb');
 
+    const masjidUnitCondition = [];
+    if (!isNaN(masjid_id)) {
+      masjidUnitCondition.push({ masjidId: masjid_id });
+    }
+    if (!isNaN(unit_id)) {
+      masjidUnitCondition.push({ unitId: unit_id });
+    }
+
     const queryConditions = [
       {
         $or: [
@@ -247,14 +255,12 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
           { address2: addressRegex }
         ]
       },
-      {
-        $and: [
-          { masjidId: masjid_id },
-          { unitId: unit_id }
-        ]
-      },
       { city: city_regex }
     ];
+
+    if (masjidUnitCondition.length > 0) {
+      queryConditions.push({ $and: masjidUnitCondition });
+    }
 
     // Active/inactive filter (default: only active records)
     if (showInactive) {
@@ -285,16 +291,16 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
 addressRouter.get('/addressList/list/', (req, res, next) => { // Handle GET requests to /api/addressList
   const { masjid_id, unit_id } = req.query;
   console.log(`searching ${masjid_id} ${unit_id}`);
+  const query = { masjidId: parseInt(masjid_id), inactive: false };
+  if (unit_id !== undefined && unit_id !== '') {
+    query.unitId = parseInt(unit_id);
+  }
   dbconnect.then(client => {
     let listingdb = client.db('listingdb');
-    const address = listingdb.collection('listings').find({ 
-      masjidId: parseInt(masjid_id), unitId: parseInt(unit_id) , inactive: false
-    }).toArray();
-    console.log(address.length);
-    address.then(result => {
-      console.log(`found ${result.length} addressList`);
-      res.json(result);
-    });
+    return listingdb.collection('listings').find(query).toArray();
+  }).then(result => {
+    console.log(`found ${result.length} addressList`);
+    res.json(result);
   }).catch(err => {
     next(err);
   });
