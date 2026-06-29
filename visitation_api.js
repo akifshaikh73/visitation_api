@@ -1,6 +1,7 @@
+
 const e = require('express');
 const express = require('express');
-const MongoClient = require('mongodb').MongoClient;
+const { MongoClient, ObjectId } = require('mongodb');
 const process = require('process');
 const path = require('path');
 
@@ -16,6 +17,28 @@ app.use(express.json());
 
 exclusions= { sequenceNumber: 0, _class: 0 ,listingSource : 0, deliverycode:0};
 
+/**
+ * Atomically increment and return the next sequence value.
+ * @param {import('mongodb').Db} db
+ * @param {string} sequenceId
+ * @returns {Promise<number>}
+ */
+async function generateNextSequence(db) {
+  // Update the existing sequence document in-place (same strategy as the Java app).
+  // Using findOneAndUpdate ensures atomicity and avoids duplicate key conflicts
+  // when multiple apps share the same sequence collection.
+  const latest = await db.collection('database_sequences').findOne({}, { sort: { _id: -1 } });
+  if (!latest) throw new Error('No sequence document found in database_sequences');
+
+  const result = await db.collection('database_sequences').findOneAndUpdate(
+    { _id: latest._id },
+    [{ $set: { seq: { $toString: { $add: [{ $toLong: '$seq' }, 1] } } } }],
+    { returnDocument: 'after' }
+  );
+
+  return parseInt(result.seq);
+}
+
 const connectionstring = process.env.MONGODB_URI || 'mongodb://localhost:27017/listingdb';
 
 console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
@@ -27,6 +50,7 @@ const dbconnect = MongoClient.connect(connectionstring, {
   serverSelectionTimeoutMS: 3000,
 
 });
+
 
 const addressRouter = express.Router(); // Create a new Router
 
@@ -345,6 +369,71 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
   });
 });
 
+/*
+  request body should contain the new address object, e.g.
+  {
+    "address1": "123 Main St",
+    "address2": "Apt 4B",
+
+    "city": "Anytown",
+    "state": "CA",
+    "zipcode": 12345,
+    "masjidId": 1,
+    "unitId": 1,
+    "firstName": "John",
+    "lastName": "Doe",
+    "response": "",
+    "source": "web",
+    "visitedDate": "2025-31-08",
+
+  }
+*/
+
+addressRouter.route('/addressList').post((req, res, next) => {
+  const request_body = req.body;
+
+  dbconnect.then(async client => {
+    let listingdb = client.db('listingdb');
+
+    const nextId = await generateNextSequence(listingdb);
+    const newId = String(nextId);
+    console.log(`addListing - next sequence: ${newId}`);
+    const newAddress = { ...request_body };
+    newAddress._id = newId;
+    newAddress.lastModifiedDate = new Date(request_body.visitedDate || new Date());
+    // remove visitedDate from the newAddress object since it's not part of the schema
+    delete newAddress.visitedDate;
+
+    newAddress.inactive = false;
+    newAddress._class = "com.markaz.visitation.model.Listing";
+    newAddress.listingSource = request_body.source || "gsheets.unmatched.v0";
+    newAddress.version = 0; // Initialize version to 0 for new listings. Important attribute for updates
+    newAddress.deliverycode = 0;
+    newAddress.latitude = request_body.latitude || 0;
+    newAddress.longitude = request_body.longitude || 0;
+    newAddress.zipcode = parseInt(request_body.zipcode, 10) || 0;
+    newAddress.met = /\bmet\b/i.test(newAddress.latestResponse || '') && !/not met/i.test(newAddress.latestResponse || '');
+    newAddress.visitHistory =  [
+      {
+        createdDate: newAddress.lastModifiedDate,
+        comments: newAddress.comments ,
+        response: newAddress.latestResponse
+      }
+    ];
+    
+
+
+    const result = await listingdb.collection('listings').insertOne(newAddress);
+    console.log(`addListing - inserted _id: ${newId}`);
+    return { ...result, _id: newId };
+  }).then(result => {
+    res.status(201).json(result);
+  }).catch(err => {
+    console.error(`addListing error: ${err.message}`);
+    next(err);
+  });
+});
+
 addressRouter.route('/dbStatus').get((req, res) => {
   const mongoUri = process.env.MONGODB_URI || '';
   const isLocal = mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1');
@@ -372,13 +461,14 @@ process.on('SIGINT', () => {
   process.exit();
 });
 
-app.listen(3000, () => {
-  console.log('Server is running on port 3000');
+app.listen(port, () => {
+  const baseUrl = `http://localhost:${port}/api`;
+  console.log(`Server is running on port ${port}`);
   console.log('\nRegistered routes:');
   addressRouter.stack
     .filter(r => r.route)
     .forEach(r => {
       const methods = Object.keys(r.route.methods).map(m => m.toUpperCase()).join(', ');
-      console.log(`  ${methods.padEnd(6)} /api${r.route.path}`);
+      console.log(`  ${methods.padEnd(6)} ${baseUrl}${r.route.path}`);
     });
 });

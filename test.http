@@ -145,7 +145,7 @@ PUT {{baseUrl}}/addressList/visit/{{addressID}}
 Content-Type: {{contentType}}
 
 {
-  "lastmodifieddate": "2026-05-04T00:00:00.000Z",
+  "lastmodifieddate": "{{$datetime iso8601}}",
   "comment": "Family was home, had a good conversation.",
   "response": "Left Message"
 }  
@@ -155,7 +155,7 @@ PUT {{baseUrl}}/addressList/visit/27562
 Content-Type: {{contentType}}
 
 {
-  "lastmodifieddate": "2026-05-04T00:00:00.000Z",
+  "lastmodifieddate": "{{$datetime iso8601}}",
     "response": "Met",
     "comment": "Friendly"
 }
@@ -192,11 +192,43 @@ GET {{baseUrl}}/addressList/list/?masjid_id=99999&unit_id=1
 ### DATABASE MANAGEMENT
 ###
 
+### 29. Add a new address entry
+POST {{baseUrl}}/addressList
+Content-Type: {{contentType}}
+
+{
+  "firstName": "ALI",
+  "lastName": "KHAN",
+  "address1": "237 ROBERT CT",
+  "address2": "",
+  "city": "GLENDALE HEIGHTS",
+  "state": "Illinois",
+  "zipcode": 60139,
+  "masjidId": 112,
+  "unitId": 1,
+  "visitedDate": "2025-31-08",
+  "response": "Left Message",
+  "comment": "Family was home",
+  "source": "gsheets.unmatched.v0"
+}
+
+###
+### DATABASE MANAGEMENT
+###
+
 ### 26. Check database status (local or remote)
 GET {{baseUrl}}/dbStatus
 
 ### 27. Close database connection
 GET {{baseUrl}}/closeDB
+
+### Add an entry
+POST https://chicagolpv.appspot.com/listing/add
+Content-Type: application/x-www-form-urlencoded
+Referer: https://chicagolpv.appspot.com/listing
+
+_csrf=8cd0c9fa-2972-4bd9-a9c1-e142ea3ca39e&newAddressValidation=true&firstName=ALI+&lastName=KHAN&masjidId=112&unitId=1&address2=&response=Left+Message&comments=Woman+Answered&address1=237+ROBERT+CT&neighborhood=&city=GLENDALE+HEIGHTS&state=Illinois&zipcode=60139
+
 
 ###
 ### TESTING NOTES
@@ -218,3 +250,4 @@ GET {{baseUrl}}/closeDB
 # 3. Adjust IDs to match actual data in your database
 # 4. Check console logs for MongoDB connection details
 #
+
