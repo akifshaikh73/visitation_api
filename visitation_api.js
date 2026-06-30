@@ -209,7 +209,7 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
 
     return listings.updateOne(
       { _id: id },
-      { $set: setFields }
+      [{ $set: { ...setFields, version: { $add: [{ $convert: { input: '$version', to: 'long', onError: 0, onNull: 0 } }, 1] } } }]
     );
   }).then(result => {
     if (!result) {
@@ -348,14 +348,18 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
 
   console.log(`updateVisit ${id} - response: ${visitEntry.response}, date: ${modifiedDate}`);
 
-  dbconnect.then(client => {
+  dbconnect.then(async client => {
     let listingdb = client.db('listingdb');
+    const current = await listingdb.collection('listings').findOne({ _id: id }, { projection: { version: 1 } });
+    const nextVersion = (parseInt(current?.version) || 0) + 1;
+
     return listingdb.collection('listings').updateOne(
       { _id: id },
       {
         $set: {
           lastModifiedDate: modifiedDate,
-          latestResponse: visitEntry.response
+          latestResponse: visitEntry.response,
+          version: nextVersion
         },
         $push: { visitHistory: visitEntry }
       }
@@ -425,11 +429,38 @@ addressRouter.route('/addressList').post((req, res, next) => {
 
     const result = await listingdb.collection('listings').insertOne(newAddress);
     console.log(`addListing - inserted _id: ${newId}`);
-    return { ...result, _id: newId };
+    return { acknowledged: result.acknowledged, _id: newId };
   }).then(result => {
     res.status(201).json(result);
   }).catch(err => {
     console.error(`addListing error: ${err.message}`);
+    next(err);
+  });
+});
+
+addressRouter.route('/addressList/bulk/area').put((req, res, next) => {
+  const { ids, area } = req.body;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids must be a non-empty array' });
+  }
+  if (!area || typeof area !== 'string') {
+    return res.status(400).json({ error: 'area must be a non-empty string' });
+  }
+
+  console.log(`bulkUpdateArea - updating ${ids.length} listings to area: "${area}"`);
+
+  dbconnect.then(client => {
+    let listingdb = client.db('listingdb');
+    return listingdb.collection('listings').updateMany(
+      { _id: { $in: ids } },
+      [{ $set: { area: area, version: { $add: [{ $convert: { input: '$version', to: 'long', onError: 0, onNull: 0 } }, 1] } } }]
+    );
+  }).then(result => {
+    console.log(`bulkUpdateArea - matched: ${result.matchedCount}, modified: ${result.modifiedCount}`);
+    res.json({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+  }).catch(err => {
+    console.error(`bulkUpdateArea error: ${err.message}`);
     next(err);
   });
 });

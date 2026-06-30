@@ -216,6 +216,15 @@ Content-Type: {{contentType}}
 ### DATABASE MANAGEMENT
 ###
 
+### 30. Bulk update area for a list of IDs
+PUT {{baseUrl}}/addressList/bulk/area
+Content-Type: {{contentType}}
+
+{
+  "ids": ["27562", "27563", "27564"],
+  "area": "North Side"
+}
+
 ### 26. Check database status (local or remote)
 GET {{baseUrl}}/dbStatus
 
