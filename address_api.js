@@ -34,7 +34,7 @@ class AddressAPI {
 
   async create(req, res) {
     const newAddress = req.body;
-    console.log(`creating {newAddress}`);
+    console.log(`creating`, newAddress);
     const result = await this.db.collection('listings').insertOne(newAddress);
     res.json(result);
   }
@@ -103,6 +103,6 @@ addressRouter.route('/addresses/search/:id').get((req, res) => {
 
 app.use('/api', addressRouter); // Add the Router to the application
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
-app.listen(3000, () => console.log('Server is running on port 3000'));
+app.listen(port, () => console.log(`Server is running on port ${port}`));

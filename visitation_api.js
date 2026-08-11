@@ -395,6 +395,7 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
 
 addressRouter.route('/addressList').post((req, res, next) => {
   const request_body = req.body;
+  console.log('addAddress payload:', request_body);
 
   dbconnect.then(async client => {
     let listingdb = client.db('listingdb');
@@ -404,26 +405,29 @@ addressRouter.route('/addressList').post((req, res, next) => {
     console.log(`addListing - next sequence: ${newId}`);
     const newAddress = { ...request_body };
     newAddress._id = newId;
-    newAddress.lastModifiedDate = new Date(request_body.visitedDate || new Date());
-    // remove visitedDate from the newAddress object since it's not part of the schema
     delete newAddress.visitedDate;
+    delete newAddress.source; // source is not part of the schema; use listingSource instead
 
     newAddress.inactive = false;
     newAddress._class = "com.markaz.visitation.model.Listing";
-    newAddress.listingSource = request_body.source || "gsheets.unmatched.v0";
+    newAddress.listingSource = request_body.listingSource || "gsheets.unmatched.v0";
     newAddress.version = 0; // Initialize version to 0 for new listings. Important attribute for updates
     newAddress.deliverycode = 0;
     newAddress.latitude = request_body.latitude || 0;
     newAddress.longitude = request_body.longitude || 0;
     newAddress.zipcode = parseInt(request_body.zipcode, 10) || 0;
     newAddress.met = /\bmet\b/i.test(newAddress.latestResponse || '') && !/not met/i.test(newAddress.latestResponse || '');
-    newAddress.visitHistory =  [
-      {
-        createdDate: newAddress.lastModifiedDate,
-        comments: newAddress.comments ,
-        response: newAddress.latestResponse
-      }
-    ];
+
+    if (request_body.visitedDate) {
+      newAddress.lastModifiedDate = new Date(request_body.visitedDate);
+      newAddress.visitHistory = [
+        {
+          createdDate: newAddress.lastModifiedDate,
+          comments: newAddress.comments,
+          response: newAddress.latestResponse
+        }
+      ];
+    }
     
 
 
@@ -465,6 +469,39 @@ addressRouter.route('/addressList/bulk/area').put((req, res, next) => {
   });
 });
 
+// ── Masjid Management (read-only) ───────────────────────────────────────────
+
+addressRouter.get('/masjids', (req, res, next) => {
+  const { search } = req.query; // optional partial name search
+  dbconnect.then(client => {
+    const db = client.db('listingdb');
+    const query = search
+      ? { name: new RegExp(search, 'i') }
+      : {};
+    return db.collection('masjids').find(query).toArray();
+  }).then(result => {
+    res.json(result);
+  }).catch(next);
+});
+
+addressRouter.get('/masjids/:id', (req, res, next) => {
+  const rawId = req.params.id;
+  const numericId = parseInt(rawId, 10);
+  const idQuery = isNaN(numericId)
+    ? { $or: [{ _id: rawId }] }
+    : { $or: [{ _id: rawId }, { _id: numericId }, { id: numericId }] };
+
+  dbconnect.then(client => {
+    const db = client.db('listingdb');
+    return db.collection('masjids').findOne(idQuery);
+  }).then(result => {
+    if (!result) return res.status(404).json({ error: `Masjid ${rawId} not found` });
+    res.json(result);
+  }).catch(next);
+});
+
+// ── End Masjid Management ────────────────────────────────────────────────────
+
 addressRouter.route('/dbStatus').get((req, res) => {
   const mongoUri = process.env.MONGODB_URI || '';
   const isLocal = mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1');
@@ -482,7 +519,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
 process.on('SIGINT', () => {
   console.log('Shutting down');
