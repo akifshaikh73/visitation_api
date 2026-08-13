@@ -164,7 +164,7 @@ addressRouter.route('/closeDB').get((req, res, next) => {
 
 addressRouter.route('/addressList/:id').put((req, res, next) => {
   const id = req.params.id;
-  const { firstName, lastName, unitId } = req.body;
+  const { firstName, lastName, unitId, latestResponse } = req.body;
   console.log(`updating ${id} ${firstName} ${lastName} unitId=${unitId}`);
 
   dbconnect.then(async client => {
@@ -203,6 +203,10 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
       }
     }
 
+    if (latestResponse === 'Duplicate') {
+      setFields.inactive = true;
+    }
+
     if (Object.keys(setFields).length === 0) {
       return { acknowledged: true, matchedCount: 1, modifiedCount: 0 };
     }
@@ -223,6 +227,37 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
   });
 });
 
+
+addressRouter.route('/addressList/:id/address2').patch((req, res, next) => {
+  const id = req.params.id;
+  const { address2 } = req.body;
+
+  if (address2 === undefined || address2 === null) {
+    return res.status(400).json({ error: 'address2 is required' });
+  }
+
+  console.log(`updateAddress2 ${id} -> "${address2}"`);
+
+  dbconnect.then(async client => {
+    const listings = client.db('listingdb').collection('listings');
+    const current = await listings.findOne({ _id: id }, { projection: { _id: 1 } });
+    if (!current) {
+      res.status(404).json({ error: `Listing ${id} not found` });
+      return null;
+    }
+    return listings.updateOne(
+      { _id: id },
+      [{ $set: { address2: address2, version: { $add: [{ $convert: { input: '$version', to: 'long', onError: 0, onNull: 0 } }, 1] } } }]
+    );
+  }).then(result => {
+    if (!result) return;
+    console.log(`updateAddress2 ${id} - matched: ${result.matchedCount}, modified: ${result.modifiedCount}`);
+    res.json(result);
+  }).catch(err => {
+    console.error(`updateAddress2 ${id} error: ${err.message}`);
+    next(err);
+  });
+});
 
 addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
   console.log(req.body);
