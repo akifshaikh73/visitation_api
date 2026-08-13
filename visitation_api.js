@@ -164,7 +164,7 @@ addressRouter.route('/closeDB').get((req, res, next) => {
 
 addressRouter.route('/addressList/:id').put((req, res, next) => {
   const id = req.params.id;
-  const { firstName, lastName, unitId, latestResponse } = req.body;
+  const { firstName, lastName, unitId } = req.body;
   console.log(`updating ${id} ${firstName} ${lastName} unitId=${unitId}`);
 
   dbconnect.then(async client => {
@@ -201,10 +201,6 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
         setFields.unitId = nextUnitId;
         console.log(`unitId changed for ${id}: ${currentListing.unitId} -> ${nextUnitId}`);
       }
-    }
-
-    if (latestResponse === 'Duplicate') {
-      setFields.inactive = true;
     }
 
     if (Object.keys(setFields).length === 0) {
@@ -388,14 +384,19 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
     const current = await listingdb.collection('listings').findOne({ _id: id }, { projection: { version: 1 } });
     const nextVersion = (parseInt(current?.version) || 0) + 1;
 
+    const visitFields = {
+      lastModifiedDate: modifiedDate,
+      latestResponse: visitEntry.response,
+      version: nextVersion
+    };
+    if (visitEntry.response === 'Duplicate') {
+      visitFields.inactive = true;
+    }
+
     return listingdb.collection('listings').updateOne(
       { _id: id },
       {
-        $set: {
-          lastModifiedDate: modifiedDate,
-          latestResponse: visitEntry.response,
-          version: nextVersion
-        },
+        $set: visitFields,
         $push: { visitHistory: visitEntry }
       }
     );
