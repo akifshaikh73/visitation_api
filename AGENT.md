@@ -67,52 +67,53 @@ visitation_api/
 
 ## API Routes
 
-### Address Search Endpoints
+All routes are prefixed with `/api`. See [README.md](README.md) for setup.
 
-**GET `/api/addressList/search/:id`**
-- Search by address ID
-- Returns single listing object
+### Listings — Search
 
-**GET `/api/addressList/search/city/:city`**
-- Search by city (case-insensitive regex)
-- Returns array of listings matching city
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/addressList/search/:id` | Find listing by `_id` |
+| `GET` | `/api/addressList/search/city/:city` | Case-insensitive city regex search |
+| `GET` | `/api/addressList/search/name/:name` | Search firstName or lastName |
+| `GET` | `/api/addressList/search/address/:address` | Search address1 or address2 |
 
-**GET `/api/addressList/search/name/:name`**
-- Search by first or last name (case-insensitive)
-- Returns array of matching listings
+### Listings — Filter & List
 
-**GET `/api/addressList/search/address/:address`**
-- Search by address1 or address2 (case-insensitive)
-- Returns matching addresses
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/addressList/list/` | List by `?masjid_id=X&unit_id=Y`; excludes inactive |
+| `GET` | `/api/addressList/filter/students/` | Listings with non-empty `students` array |
+| `GET` | `/api/addressList/filter/inactive/` | Listings where `inactive: true` |
+| `POST` | `/api/addressList/filter/search/` | Advanced multi-field search (see body below) |
 
-### Filter Endpoints
+`POST /filter/search/` body: `{ name, address, city, masjidId, unitId, _id, showInactive, filterByStudents }`. If `_id` is provided, all other criteria are ignored.
 
-**GET `/api/addressList/filter/students/`**
-- Returns listings with non-empty students array
+### Listings — Mutations
 
-**GET `/api/addressList/filter/inactive/`**
-- Returns inactive listings
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/addressList` | Create new listing; auto-assigns `_id` via `database_sequences` |
+| `PUT` | `/api/addressList/:id` | Update `firstName`, `lastName`, `unitId`; increments `version` |
+| `PUT` | `/api/addressList/visit/:id` | Record a visit; sets `latestResponse`, pushes to `visitHistory`; sets `inactive=true` if response is `"Duplicate"` |
+| `PUT` | `/api/addressList/bulk/area` | Bulk-set `area` on multiple listings; body: `{ ids: string[], area: string }` |
+| `PATCH` | `/api/addressList/:id/address2` | Update `address2` field only |
 
-**POST `/api/addressList/filter/search/`**
-- Advanced filtering with multiple criteria
-- Body parameters: name, address, city, masjidId, unitId, _id
-- If _id provided, ignores other criteria
+### Masjids (read-only)
 
-**GET `/api/addressList/list/?masjid_id=X&unit_id=Y`**
-- Returns listings for specific masjid and unit
-- Query parameters: masjid_id, unit_id
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/masjids` | List all masjids; optional `?search=` partial name filter |
+| `GET` | `/api/masjids/:id` | Get single masjid by `_id` or numeric `id` |
 
-### Update Endpoint
+### Utility
 
-**PUT `/api/addressList/:id`**
-- Update listing firstName/lastName
-- Body: `{ firstName: string, lastName: string }`
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/dbStatus` | Returns `{ dbStatus: "local" \| "remote" }` |
+| `GET` | `/api/closeDB` | Closes MongoDB connection |
 
-### Database Endpoint
 
-**GET `/api/closeDB`**
-- Closes MongoDB connection
-- Returns success message
 
 ## Environment Configuration
 
@@ -153,18 +154,23 @@ npm start
 **Database**: listingdb  
 **Collection**: listings
 
-**Document fields** (example):
-- `_id` - Document ID
-- `firstName` - First name
-- `lastName` - Last name
-- `address1` - Primary address
-- `address2` - Secondary address
-- `city` - City name
-- `masjidId` - Masjid identifier (integer)
-- `unitId` - Unit identifier (integer)
-- `students` - Array of student info
-- `inactive` - Boolean flag for inactive status
-- `sequenceNumber`, `_class`, `listingSource`, `deliverycode` - Excluded fields
+**Collections**: `listings`, `masjids`, `database_sequences`
+
+**`listings` document fields**:
+- `_id` (string) — auto-assigned from `database_sequences.seq`
+- `firstName`, `lastName` — name fields
+- `address1`, `address2`, `city`, `zipcode` — address
+- `masjidId` (int), `unitId` (int) — assignment
+- `area` (string) — bulk-assignable area label
+- `inactive` (bool) — soft-delete; set `true` when `latestResponse = "Duplicate"`
+- `latestResponse` (string) — most recent visit response
+- `met` (bool) — true if latestResponse contains "met" but not "not met"
+- `version` (long) — incremented on every update (optimistic concurrency)
+- `lastModifiedDate` (Date)
+- `visitHistory` (array) — `{ createdDate, response, comments }`
+- `students` (array)
+- `latitude`, `longitude` (number)
+- `sequenceNumber`, `_class`, `listingSource`, `deliverycode` — legacy/internal, excluded from most responses via `exclusions` projection
 
 **Exclusions object** (fields to hide in responses):
 ```javascript
@@ -196,10 +202,17 @@ exclusions = { sequenceNumber: 0, _class: 0, listingSource: 0, deliverycode: 0 }
 ## Common Workflows
 
 ### Adding a New API Endpoint
-1. Define route in `visitation_api.js`
-2. Add to `addressRouter`
-3. Include error handling with `.catch(err => next(err))`
-4. Test locally with `npm run dev`
+1. Define route in `visitation_api.js` on `addressRouter`
+2. Use promise chain ending in `.catch(err => next(err))`
+3. Increment `version` on any mutation using the `$add/$convert` pipeline pattern already in the file
+4. Update the routes table in `AGENT.md`
+5. Test locally with `npm run dev`
+
+### Recording a Visit
+- Use `PUT /api/addressList/visit/:id`
+- Body: `{ response, comment, lastmodifieddate? }`
+- Automatically sets `inactive=true` when `response === "Duplicate"`
+- Appends entry to `visitHistory` array
 
 ### Updating Database Schema
 1. Modify MongoDB documents directly (or create migration)
