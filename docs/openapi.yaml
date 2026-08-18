@@ -1,0 +1,669 @@
+openapi: 3.0.3
+info:
+  title: Visitation API
+  description: API for managing Markaz visitation listings, addresses, and masjids.
+  version: 1.0.0
+  contact:
+    name: Akif
+
+servers:
+  - url: https://visitation-api.onrender.com/api
+    description: Production (Render)
+  - url: http://localhost:5000/api
+    description: Local development server
+
+tags:
+  - name: Listings
+    description: Address/listing management and search
+  - name: Visits
+    description: Visitation tracking
+  - name: Masjids
+    description: Masjid directory
+  - name: Utilities
+    description: Server utilities
+
+paths:
+
+  # ── Listings ──────────────────────────────────────────────────────────────
+
+  /addressList:
+    post:
+      tags: [Listings]
+      summary: Create a new listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewListing'
+            example:
+              firstName: John
+              lastName: Doe
+              address1: 123 Main St
+              address2: Apt 4B
+              city: Anytown
+              state: CA
+              zipcode: 12345
+              masjidId: 1
+              unitId: 1
+              latestResponse: ""
+              visitedDate: "2025-08-18"
+      responses:
+        '201':
+          description: Listing created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  acknowledged:
+                    type: boolean
+                  _id:
+                    type: string
+                    description: Auto-generated numeric string ID
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/list/:
+    get:
+      tags: [Listings]
+      summary: List active listings by masjid and optional unit
+      parameters:
+        - in: query
+          name: masjid_id
+          required: true
+          schema:
+            type: integer
+          description: Masjid ID to filter by
+        - in: query
+          name: unit_id
+          required: false
+          schema:
+            type: integer
+          description: Unit ID to further filter by
+      responses:
+        '200':
+          description: Array of matching listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/search/{id}:
+    get:
+      tags: [Listings]
+      summary: Look up a single listing by its ID
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      responses:
+        '200':
+          description: Matching listing (null if not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/search/city/{city}:
+    get:
+      tags: [Listings]
+      summary: Search listings by city (case-insensitive partial match)
+      parameters:
+        - in: path
+          name: city
+          required: true
+          schema:
+            type: string
+          example: Springfield
+      responses:
+        '200':
+          description: Array of matching listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/search/name/{name}:
+    get:
+      tags: [Listings]
+      summary: Search listings by first or last name (case-insensitive partial match)
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          example: Ahmed
+      responses:
+        '200':
+          description: Array of matching listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/search/address/{address}:
+    get:
+      tags: [Listings]
+      summary: Search listings by street address (address1 or address2, case-insensitive)
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          example: "123 Oak"
+      responses:
+        '200':
+          description: Array of matching listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/filter/search/:
+    post:
+      tags: [Listings]
+      summary: Advanced multi-criteria search
+      description: |
+        Filters listings by any combination of name, address, city, masjidId, unitId,
+        active status, and student presence. If `_id` is provided all other criteria are ignored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            example:
+              masjidId: 1
+              unitId: 2
+              name: "Ali"
+              city: "Springfield"
+              showInactive: false
+              filterByStudents: "all"
+      responses:
+        '200':
+          description: Array of matching listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/filter/students/:
+    get:
+      tags: [Listings]
+      summary: Get all listings that have at least one student
+      responses:
+        '200':
+          description: Array of listings with students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/filter/inactive/:
+    get:
+      tags: [Listings]
+      summary: Get all inactive listings
+      responses:
+        '200':
+          description: Array of inactive listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Listing'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/{id}:
+    put:
+      tags: [Listings]
+      summary: Update a listing's name and/or unit
+      description: Only fields that differ from the current value are written. Version is auto-incremented.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                unitId:
+                  type: integer
+            example:
+              firstName: Ahmed
+              lastName: Khan
+              unitId: 3
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdateResult'
+        '400':
+          description: unitId is not a valid integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/{id}/address2:
+    patch:
+      tags: [Listings]
+      summary: Update the secondary address line of a listing
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address2]
+              properties:
+                address2:
+                  type: string
+            example:
+              address2: "Suite 100"
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdateResult'
+        '400':
+          description: address2 field is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /addressList/bulk/area:
+    put:
+      tags: [Listings]
+      summary: Bulk-update the area field for multiple listings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, area]
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                  description: List of listing _id values to update
+                area:
+                  type: string
+                  description: New area value to assign
+            example:
+              ids: ["1001", "1002", "1003"]
+              area: "North Zone"
+      responses:
+        '200':
+          description: Bulk update result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matchedCount:
+                    type: integer
+                  modifiedCount:
+                    type: integer
+        '400':
+          description: ids is empty or area is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Visits ────────────────────────────────────────────────────────────────
+
+  /addressList/visit/{id}:
+    put:
+      tags: [Visits]
+      summary: Record a visitation for a listing
+      description: |
+        Appends a visit entry to the listing's `visitHistory` and updates `latestResponse`.
+        If `response` is `"Duplicate"` the listing is automatically marked inactive.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitRequest'
+            example:
+              response: "Met"
+              comment: "Family was home, very welcoming"
+              lastmodifieddate: "2025-08-18T14:30:00Z"
+      responses:
+        '200':
+          $ref: '#/components/responses/UpdateResult'
+        '400':
+          description: response field is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Masjids ───────────────────────────────────────────────────────────────
+
+  /masjids:
+    get:
+      tags: [Masjids]
+      summary: List all masjids (optional name search)
+      parameters:
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive partial name filter
+          example: Rahma
+      responses:
+        '200':
+          description: Array of masjids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Masjid'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /masjids/{id}:
+    get:
+      tags: [Masjids]
+      summary: Get a single masjid by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Numeric or string masjid ID
+          example: "1"
+      responses:
+        '200':
+          description: Masjid object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Masjid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Utilities ─────────────────────────────────────────────────────────────
+
+  /dbStatus:
+    get:
+      tags: [Utilities]
+      summary: Check whether the server is connected to a local or remote database
+      responses:
+        '200':
+          description: DB connection type
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dbStatus:
+                    type: string
+                    enum: [local, remote]
+
+# ── Reusable Components ────────────────────────────────────────────────────
+
+components:
+
+  parameters:
+    ListingId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+      description: The listing's string _id (auto-generated sequential number)
+      example: "1042"
+
+  responses:
+    NotFound:
+      description: Listing not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UpdateResult:
+      description: MongoDB update result
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              acknowledged:
+                type: boolean
+              matchedCount:
+                type: integer
+              modifiedCount:
+                type: integer
+
+  schemas:
+
+    Listing:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Auto-generated sequential numeric string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        address1:
+          type: string
+        address2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipcode:
+          type: integer
+        masjidId:
+          type: integer
+        unitId:
+          type: integer
+        area:
+          type: string
+        inactive:
+          type: boolean
+        met:
+          type: boolean
+          description: True when latestResponse contains the word "met" (case-insensitive)
+        latestResponse:
+          type: string
+        lastModifiedDate:
+          type: string
+          format: date-time
+        version:
+          type: integer
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        comments:
+          type: string
+        students:
+          type: array
+          items:
+            type: string
+        visitHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisitEntry'
+
+    NewListing:
+      type: object
+      required: [firstName, lastName, address1, city, state, zipcode, masjidId, unitId]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        address1:
+          type: string
+        address2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipcode:
+          type: integer
+        masjidId:
+          type: integer
+        unitId:
+          type: integer
+        area:
+          type: string
+        latestResponse:
+          type: string
+        comments:
+          type: string
+        visitedDate:
+          type: string
+          format: date
+          description: Optional ISO date; creates an initial visit history entry
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        listingSource:
+          type: string
+          default: "gsheets.unmatched.v0"
+
+    VisitRequest:
+      type: object
+      required: [response]
+      properties:
+        response:
+          type: string
+          description: Visit outcome (e.g. "Met", "Not Home", "Duplicate")
+          example: Met
+        comment:
+          type: string
+        lastmodifieddate:
+          type: string
+          format: date-time
+          description: Defaults to current server time if omitted
+
+    VisitEntry:
+      type: object
+      properties:
+        createdDate:
+          type: string
+          format: date-time
+        response:
+          type: string
+        comments:
+          type: string
+
+    SearchRequest:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: If provided, all other criteria are ignored
+        name:
+          type: string
+          description: Partial match against firstName or lastName
+        address:
+          type: string
+          description: Partial match against address1 or address2
+        city:
+          type: string
+        masjidId:
+          type: integer
+        unitId:
+          type: integer
+        showInactive:
+          type: boolean
+          default: false
+          description: When true, returns only inactive records
+        filterByStudents:
+          type: string
+          enum: [all, "true"]
+          default: all
+          description: '"true" restricts results to listings that have students'
+
+    Masjid:
+      type: object
+      properties:
+        _id:
+          type: string
+        id:
+          type: integer
+        name:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string

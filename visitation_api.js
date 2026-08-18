@@ -4,6 +4,9 @@ const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const process = require('process');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const yaml = require('js-yaml');
+const fs = require('fs');
 
 // Load environment variables from .env.local or .env.production based on NODE_ENV
 const env = process.env.NODE_ENV || 'local';
@@ -390,6 +393,7 @@ addressRouter.route('/addressList/visit/:id').put((req, res, next) => {
       version: nextVersion
     };
     if (visitEntry.response === 'Duplicate') {
+      console.log(`marking listing as inactive for id: ${id}`);
       visitFields.inactive = true;
     }
 
@@ -549,6 +553,9 @@ addressRouter.route('/dbStatus').get((req, res) => {
 });
 
 app.use('/api', addressRouter); // Add the Router to the application
+
+const swaggerSpec = yaml.load(fs.readFileSync(path.join(__dirname, 'docs/openapi.yaml'), 'utf8'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use((err, req, res, next) => {
   console.error(`Error: ${err}`);
