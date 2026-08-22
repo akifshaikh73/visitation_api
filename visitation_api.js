@@ -549,52 +549,66 @@ const userExclusions = { password: 0, _class: 0 };
 
 addressRouter.post('/users/login', (req, res, next) => {
   const { email, pin } = req.body;
-  if (!email || !pin) {
-    return res.status(400).json({ message: 'email and pin are required' });
+  if (!pin) {
+    return res.status(400).json({ message: 'pin is required' });
   }
 
-  let foundUser;
-  dbconnect.then(client => {
+  const resolveAndRespond = (client, user, role) => {
     const db = client.db('listingdb');
-    return db.collection('users').findOne({ email: email.trim().toLowerCase() });
-  }).then(user => {
-    if (!user) return res.status(401).json({ message: 'Invalid email or PIN' });
-    if (user.enabled === false) return res.status(403).json({ message: 'Account is disabled' });
+    const allMasjidIds = Array.from(new Set([
+      user.masjidId,
+      ...(Array.isArray(user.accessToMasjidIds) ? user.accessToMasjidIds : []),
+    ].filter(id => id != null)));
 
-    foundUser = user;
-    return bcrypt.compare(pin, user.password);
-  }).then(match => {
-    if (match === false) return res.status(401).json({ message: 'Invalid email or PIN' });
-    if (match === undefined) return; // response already sent above
+    return db.collection('masjids').find(
+      { $or: [{ _id: { $in: allMasjidIds } }, { id: { $in: allMasjidIds } }] },
+      { projection: { _id: 1, id: 1, landing: 1 } }
+    ).toArray().then(masjidDocs => {
+      const slugByMasjidId = {};
+      masjidDocs.forEach(m => { slugByMasjidId[m._id ?? m.id] = m.landing; });
 
-    return dbconnect.then(client => {
-      const db = client.db('listingdb');
-      const allMasjidIds = Array.from(new Set([
-        foundUser.masjidId,
-        ...(Array.isArray(foundUser.accessToMasjidIds) ? foundUser.accessToMasjidIds : []),
-      ].filter(id => id != null)));
+      const primarySlug = slugByMasjidId[user.masjidId];
+      const allSlugs = allMasjidIds.map(id => slugByMasjidId[id]).filter(Boolean);
 
-      return db.collection('masjids').find(
-        { $or: [{ _id: { $in: allMasjidIds } }, { id: { $in: allMasjidIds } }] },
-        { projection: { _id: 1, id: 1, landing: 1 } }
-      ).toArray().then(masjidDocs => {
-        const slugByMasjidId = {};
-        masjidDocs.forEach(m => {
-          const key = m._id ?? m.id;
-          slugByMasjidId[key] = m.landing;
-        });
-
-        const primarySlug = slugByMasjidId[foundUser.masjidId];
-        const allSlugs = allMasjidIds.map(id => slugByMasjidId[id]).filter(Boolean);
-
-        console.log(`login ${email} - masjidId: ${foundUser.masjidId} -> slug: ${primarySlug}`);
-        res.json({
-          masjidSlug: primarySlug || null,
-          masjids: allSlugs,
-        });
+      console.log(`login ${user.email} (role=${role}) - masjidId: ${user.masjidId} -> slug: ${primarySlug}`);
+      res.json({
+        masjidSlug: primarySlug || null,
+        masjids: allSlugs,
+        role,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
       });
     });
-  }).catch(next);
+  };
+
+  if (email && email.trim()) {
+    // Email + PIN → admin login
+    let foundUser;
+    dbconnect.then(client => {
+      const db = client.db('listingdb');
+      return db.collection('users').findOne({ email: email.trim().toLowerCase() }).then(user => {
+        if (!user) { res.status(401).json({ message: 'Invalid email or PIN' }); return null; }
+        if (user.enabled === false) { res.status(403).json({ message: 'Account is disabled' }); return null; }
+        foundUser = user;
+        return bcrypt.compare(pin, user.password).then(match => {
+          if (!match) { res.status(401).json({ message: 'Invalid email or PIN' }); return null; }
+          return resolveAndRespond(client, foundUser, 'admin');
+        });
+      });
+    }).catch(next);
+  } else {
+    // PIN only → general login: scan all enabled users
+    dbconnect.then(async client => {
+      const db = client.db('listingdb');
+      const users = await db.collection('users').find({ enabled: { $ne: false } }).toArray();
+      for (const user of users) {
+        const match = await bcrypt.compare(pin, user.password);
+        if (match) return resolveAndRespond(client, user, 'general');
+      }
+      res.status(401).json({ message: 'Invalid PIN' });
+    }).catch(next);
+  }
 });
 
 addressRouter.get('/users', (req, res, next) => {
