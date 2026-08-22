@@ -2,6 +2,7 @@
 const e = require('express');
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
+const bcrypt = require('bcryptjs');
 const process = require('process');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
@@ -541,6 +542,73 @@ addressRouter.get('/masjids/:id', (req, res, next) => {
 });
 
 // ── End Masjid Management ────────────────────────────────────────────────────
+
+// ── User Management (read-only) ──────────────────────────────────────────────
+
+const userExclusions = { password: 0, _class: 0 };
+
+addressRouter.get('/users', (req, res, next) => {
+  const { search, masjidId } = req.query;
+  dbconnect.then(client => {
+    const db = client.db('listingdb');
+    const query = {};
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      query.$or = [{ email: regex }, { firstName: regex }, { lastName: regex }];
+    }
+    if (masjidId) {
+      query.masjidId = parseInt(masjidId, 10);
+    }
+    return db.collection('users').find(query, { projection: userExclusions }).toArray();
+  }).then(result => {
+    res.json(result);
+  }).catch(next);
+});
+
+addressRouter.get('/users/:id', (req, res, next) => {
+  const rawId = req.params.id;
+  dbconnect.then(client => {
+    const db = client.db('listingdb');
+    let idQuery;
+    try {
+      idQuery = { $or: [{ _id: new ObjectId(rawId) }, { email: rawId }] };
+    } catch {
+      idQuery = { email: rawId };
+    }
+    return db.collection('users').findOne(idQuery, { projection: userExclusions });
+  }).then(result => {
+    if (!result) return res.status(404).json({ error: `User ${rawId} not found` });
+    res.json(result);
+  }).catch(next);
+});
+
+const SALT_ROUNDS = 10;
+
+addressRouter.put('/users/:id/password', (req, res, next) => {
+  const rawId = req.params.id;
+  const { password } = req.body;
+  if (!password || typeof password !== 'string' || !password.trim()) {
+    return res.status(400).json({ error: 'password is required' });
+  }
+  bcrypt.hash(password.trim(), SALT_ROUNDS).then(hashed => {
+    return dbconnect.then(client => {
+      const db = client.db('listingdb');
+      let idQuery;
+      try {
+        idQuery = { $or: [{ _id: new ObjectId(rawId) }, { email: rawId }] };
+      } catch {
+        idQuery = { email: rawId };
+      }
+      return db.collection('users').updateOne(idQuery, { $set: { password: hashed } });
+    });
+  }).then(result => {
+    if (result.matchedCount === 0) return res.status(404).json({ error: `User ${rawId} not found` });
+    console.log(`resetPassword ${rawId} - modified: ${result.modifiedCount}`);
+    res.json({ acknowledged: result.acknowledged, modifiedCount: result.modifiedCount });
+  }).catch(next);
+});
+
+// ── End User Management ──────────────────────────────────────────────────────
 
 addressRouter.route('/dbStatus').get((req, res) => {
   const mongoUri = process.env.MONGODB_URI || '';
