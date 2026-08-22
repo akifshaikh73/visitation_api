@@ -547,6 +547,56 @@ addressRouter.get('/masjids/:id', (req, res, next) => {
 
 const userExclusions = { password: 0, _class: 0 };
 
+addressRouter.post('/users/login', (req, res, next) => {
+  const { email, pin } = req.body;
+  if (!email || !pin) {
+    return res.status(400).json({ message: 'email and pin are required' });
+  }
+
+  let foundUser;
+  dbconnect.then(client => {
+    const db = client.db('listingdb');
+    return db.collection('users').findOne({ email: email.trim().toLowerCase() });
+  }).then(user => {
+    if (!user) return res.status(401).json({ message: 'Invalid email or PIN' });
+    if (user.enabled === false) return res.status(403).json({ message: 'Account is disabled' });
+
+    foundUser = user;
+    return bcrypt.compare(pin, user.password);
+  }).then(match => {
+    if (match === false) return res.status(401).json({ message: 'Invalid email or PIN' });
+    if (match === undefined) return; // response already sent above
+
+    return dbconnect.then(client => {
+      const db = client.db('listingdb');
+      const allMasjidIds = Array.from(new Set([
+        foundUser.masjidId,
+        ...(Array.isArray(foundUser.accessToMasjidIds) ? foundUser.accessToMasjidIds : []),
+      ].filter(id => id != null)));
+
+      return db.collection('masjids').find(
+        { $or: [{ _id: { $in: allMasjidIds } }, { id: { $in: allMasjidIds } }] },
+        { projection: { _id: 1, id: 1, landing: 1 } }
+      ).toArray().then(masjidDocs => {
+        const slugByMasjidId = {};
+        masjidDocs.forEach(m => {
+          const key = m._id ?? m.id;
+          slugByMasjidId[key] = m.landing;
+        });
+
+        const primarySlug = slugByMasjidId[foundUser.masjidId];
+        const allSlugs = allMasjidIds.map(id => slugByMasjidId[id]).filter(Boolean);
+
+        console.log(`login ${email} - masjidId: ${foundUser.masjidId} -> slug: ${primarySlug}`);
+        res.json({
+          masjidSlug: primarySlug || null,
+          masjids: allSlugs,
+        });
+      });
+    });
+  }).catch(next);
+});
+
 addressRouter.get('/users', (req, res, next) => {
   const { search, masjidId } = req.query;
   dbconnect.then(client => {
