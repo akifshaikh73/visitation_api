@@ -106,6 +106,29 @@ All routes are prefixed with `/api`. See [README.md](README.md) for setup.
 | `GET` | `/api/masjids` | List all masjids; optional `?search=` partial name filter |
 | `GET` | `/api/masjids/:id` | Get single masjid by `_id` or numeric `id` |
 
+### Authentication & Users
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/users/login` | Authenticate user; supports **email+PIN** (admin) or **PIN-only** (general user) |
+| `GET` | `/api/users` | List all users (admin endpoints) |
+| `GET` | `/api/users/:id` | Get single user by `_id` |
+| `PUT` | `/api/users/:id/password` | Update user's password (hashed with bcryptjs) |
+
+**Authentication Details:**
+- Uses **bcryptjs** with SALT_ROUNDS=10 for password hashing
+- Email+PIN path: Admin login with email verification + PIN validation
+- PIN-only path: General user login scanning enabled users for PIN match
+- Response includes `role` field: `"admin"` or `"general"`
+- Password reset: [See bcrypt.md](docs/bcrypt.md)
+
+### Masjid Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/masjids/login` | Masjid login (PIN-based) |
+| `POST` | `/api/masjids/:id/pin` | Set/update PIN for masjid |
+
 ### Utility
 
 | Method | Path | Description |
@@ -148,6 +171,87 @@ npm run prod
 # Default start
 npm start
 ```
+
+### Windows PowerShell Scripts
+
+Located in `scripts/`:
+- **`start.ps1`** — Start the API server with NODE_ENV=local
+- **`status.ps1`** — Check if server is running on PORT 3000
+- **`stop.ps1`** — Stop the running server process
+- **`git-push.ps1`** — Interactive git workflow (stage, commit, push with prompts)
+
+Usage:
+```powershell
+.\scripts\start.ps1 local       # Start local dev
+.\scripts\start.ps1 prod        # Start production
+.\scripts\status.ps1            # Check running status
+.\scripts\stop.ps1              # Stop server
+.\scripts\git-push.ps1          # Interactive git workflow
+.\scripts\git-push.ps1 "msg"    # Git workflow with message parameter
+```
+
+## Security & Authentication Patterns
+
+### Password Security
+- **Library**: bcryptjs (pure-JavaScript, no native bindings)
+- **Salt Rounds**: 10 (hardcoded, matches existing `$2a$10$` hashes in DB)
+- **Hashing function**: `bcrypt.hash(password, SALT_ROUNDS)`
+- **Verification**: `bcrypt.compare(plaintext, hash)` returns boolean
+- See [docs/bcrypt.md](docs/bcrypt.md) for password reset flow
+
+### Authentication Flow
+**Admin Login (email + PIN):**
+1. Receive `{ email, pin }` in request body
+2. Find user by lowercase email; check if enabled
+3. Compare PIN with bcryptjs hash
+4. Return `{ role: "admin", masjidSlug, email, ... }`
+
+**General User Login (PIN only):**
+1. Receive `{ pin }` in request body (no email required)
+2. Scan all enabled users for matching PIN
+3. Return `{ role: "general", masjidSlug, email, ... }`
+
+### Error Responses
+- `400` — Missing required fields (PIN)
+- `401` — Invalid credentials or disabled account
+- `403` — Account is disabled
+
+## Common Development Issues & Tips
+
+1. **MongoDB Connection Fails**
+   - Check `.env.local` MONGODB_URI points to running MongoDB
+   - Local MongoDB must be running: `mongod` or Docker
+   - Verify connection string format
+
+2. **Port 3000 Already in Use**
+   - Change PORT in `.env.local`
+   - Or kill process: `netstat -ano | findstr :3000`
+
+3. **Nodemon Not Reloading**
+   - Check `nodemonConfig` in `package.json`
+   - Only watches `visitation_api.js` by default
+   - Edit `watch` array to add more files
+
+4. **Password Reset Issues**
+   - Always hash before storing: `await bcrypt.hash(pin, 10)`
+   - Never store plaintext passwords
+   - See [docs/bcrypt.md](docs/bcrypt.md) for flow
+
+## Documentation
+
+- **[README.md](README.md)** — Setup and running instructions
+- **[docs/openapi.yaml](docs/openapi.yaml)** — Full OpenAPI/Swagger schema
+- **[docs/bcrypt.md](docs/bcrypt.md)** — Password hashing & reset flow
+- **[docs/changelog.md](docs/changelog.md)** — Version history and changes
+- **AGENT.md** — This file (AI agent guidelines)
+
+## Recent Changes & Features
+
+- **User authentication with role differentiation** (admin vs general)
+- **PIN-only login path** for general users without email
+- **Masjid-based access control** via `masjidId` and `accessToMasjidIds`
+- **Dynamic slug mapping** — Multiple masjids per user with landing page slugs
+- See [docs/changelog.md](docs/changelog.md) for full history
 
 ## MongoDB Database
 
