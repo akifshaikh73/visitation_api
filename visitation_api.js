@@ -589,7 +589,9 @@ addressRouter.post('/masjids/:id/pin', (req, res, next) => {
     ? { $or: [{ _id: rawId }] }
     : { $or: [{ _id: rawId }, { _id: numericId }, { id: numericId }] };
 
-  const newPin = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+  // Use provided pin if supplied, otherwise generate a random 4-digit pin
+  const providedPin = req.body && req.body.pin != null ? String(req.body.pin).trim() : null;
+  const newPin = providedPin || String(Math.floor(Math.random() * 10000)).padStart(4, '0');
 
   dbconnect.then(client => {
     const db = client.db('listingdb');

@@ -200,6 +200,24 @@ npm run prod
 npm run dev
 ```
 
+## API Documentation
+
+For comprehensive API endpoint reference, see [**docs/API.md**](docs/API.md).
+
+This includes:
+- Address listing CRUD operations and search
+- User authentication and management
+- Masjid management endpoints
+- Utility endpoints
+- Request/response examples for all endpoints
+- Error handling reference
+
+Quick links:
+- **[API Reference](docs/API.md)** — Complete endpoint documentation
+- **[OpenAPI Schema](docs/openapi.yaml)** — Swagger/OpenAPI specification
+- **[Authentication Guide](docs/bcrypt.md)** — Password hashing and reset flow
+- **[Agent Guidelines](AGENT.md)** — Development patterns and conventions
+
 ## Author
 
 Akif
