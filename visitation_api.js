@@ -166,6 +166,42 @@ addressRouter.route('/closeDB').get((req, res, next) => {
   });
 });
 
+// GET /api/addressList/:id/nearby?count=N
+// Returns N listings closest to the given listing by lat/lng (Haversine, JS-side sort)
+addressRouter.get('/addressList/:id/nearby', async (req, res, next) => {
+  const id = req.params.id;
+  const count = Math.min(parseInt(req.query.count) || 5, 50);
+  try {
+    const client = await dbconnect;
+    const col = client.db('listingdb').collection('listings');
+    const source = await col.findOne({ _id: id });
+    if (!source) return res.status(404).json({ error: 'Listing not found' });
+    const { latitude: lat1, longitude: lng1 } = source;
+    if (lat1 == null || lng1 == null) return res.status(400).json({ error: 'Source listing has no coordinates' });
+
+    // Pull active listings in the same masjid that have coordinates — avoids full collection scan
+    const candidates = await col.find(
+      { masjidId: source.masjidId, latitude: { $exists: true, $ne: null }, longitude: { $exists: true, $ne: null }, _id: { $ne: id }, inactive: { $ne: true } },
+      { projection: { _id: 1, firstName: 1, lastName: 1, address1: 1, address2: 1, lastModifiedDate: 1, latitude: 1, longitude: 1 } }
+    ).toArray();
+
+    const toRad = d => d * Math.PI / 180;
+    const haversine = (lat2, lng2) => {
+      const R = 3958.8; // miles
+      const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    const results = candidates
+      .map(c => ({ ...c, distanceMiles: haversine(c.latitude, c.longitude) }))
+      .sort((a, b) => a.distanceMiles - b.distanceMiles)
+      .slice(0, count); // keep lat/lng so UI can plot map markers
+
+    res.json(results);
+  } catch (err) { next(err); }
+});
+
 addressRouter.route('/addressList/:id').put((req, res, next) => {
   const id = req.params.id;
   const { firstName, lastName, unitId } = req.body;
