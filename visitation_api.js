@@ -597,7 +597,7 @@ addressRouter.post('/masjids/:id/pin', (req, res, next) => {
     const db = client.db('listingdb');
     return db.collection('masjids').findOneAndUpdate(
       idQuery,
-      { $set: { pin: newPin } },
+      { $set: { pin: newPin, lastModifiedDate: new Date() } },
       { returnDocument: 'after', projection: { _id: 1, name: 1, pin: 1 } }
     );
   }).then(result => {
@@ -617,6 +617,35 @@ addressRouter.get('/masjids/:id', (req, res, next) => {
   dbconnect.then(client => {
     const db = client.db('listingdb');
     return db.collection('masjids').findOne(idQuery);
+  }).then(result => {
+    if (!result) return res.status(404).json({ error: `Masjid ${rawId} not found` });
+    res.json(result);
+  }).catch(next);
+});
+
+// PUT /api/masjids/:id — update editable fields (address, city, state, zipcode, name)
+addressRouter.put('/masjids/:id', (req, res, next) => {
+  const rawId = req.params.id;
+  const numericId = parseInt(rawId, 10);
+  const idQuery = isNaN(numericId)
+    ? { $or: [{ _id: rawId }] }
+    : { $or: [{ _id: rawId }, { _id: numericId }, { id: numericId }] };
+
+  const allowed = ['name', 'address', 'city', 'state', 'zipcode'];
+  const setFields = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) setFields[key] = req.body[key];
+  }
+  if (Object.keys(setFields).length === 0)
+    return res.status(400).json({ error: 'No valid fields to update' });
+  setFields.lastModifiedDate = new Date();
+
+  dbconnect.then(client => {
+    return client.db('listingdb').collection('masjids').findOneAndUpdate(
+      idQuery,
+      { $set: setFields },
+      { returnDocument: 'after' }
+    );
   }).then(result => {
     if (!result) return res.status(404).json({ error: `Masjid ${rawId} not found` });
     res.json(result);
