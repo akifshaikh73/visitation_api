@@ -204,8 +204,8 @@ addressRouter.get('/addressList/:id/nearby', async (req, res, next) => {
 
 addressRouter.route('/addressList/:id').put((req, res, next) => {
   const id = req.params.id;
-  const { firstName, lastName, unitId, phoneNumber, bestTime, profession, inactive } = req.body;
-  console.log(`updating ${id} firstName=${firstName} lastName=${lastName} unitId=${unitId} phone=${phoneNumber} bestTime=${bestTime} profession=${profession}`);
+  const { firstName, lastName, unitId, phoneNumber, bestTime, profession, ethnicity, notes, inactive } = req.body;
+  console.log(`updating ${id} firstName=${firstName} lastName=${lastName} unitId=${unitId} phone=${phoneNumber} bestTime=${bestTime} profession=${profession} ethnicity=${ethnicity} notes=${notes}`);
 
   dbconnect.then(async client => {
     let listingdb = client.db('listingdb');
@@ -213,7 +213,7 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
 
     const currentListing = await listings.findOne(
       { _id: id },
-      { projection: { unitId: 1, firstName: 1, lastName: 1, phoneNumber: 1, bestTime: 1, profession: 1 } }
+      { projection: { unitId: 1, firstName: 1, lastName: 1, phoneNumber: 1, bestTime: 1, profession: 1, ethnicity: 1, notes: 1 } }
     );
     if (!currentListing) {
       res.status(404).json({ error: `Listing ${id} not found` });
@@ -246,6 +246,8 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
     if (phoneNumber !== undefined && phoneNumber !== currentListing.phoneNumber) setFields.phoneNumber = phoneNumber;
     if (bestTime !== undefined && bestTime !== currentListing.bestTime) setFields.bestTime = bestTime;
     if (profession !== undefined && profession !== currentListing.profession) setFields.profession = profession;
+    if (ethnicity !== undefined && ethnicity !== currentListing.ethnicity) setFields.ethnicity = ethnicity;
+    if (notes !== undefined && notes !== currentListing.notes) setFields.notes = notes;
     if (inactive !== undefined) setFields.inactive = inactive;
 
     const { oldWorker, oldWorkerTimeSpent, masturat, massuratTimeSpent } = req.body;
