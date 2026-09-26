@@ -316,6 +316,7 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
   const masjid_id = parseInt(searchCriteria.masjidId);
   const unit_id = parseInt(searchCriteria.unitId);
   const city_regex = new RegExp(searchCriteria.city || '', 'i');
+  const phone_regex = new RegExp(searchCriteria.phone || '', 'i');
   const _id = searchCriteria._id;
 
   // Optional filter parameters
@@ -338,7 +339,7 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
     return;
   }
 
-  console.log(`searching ${masjid_id} ${unit_id} ${nameRegex} ${addressRegex} ${city_regex} showInactive=${showInactive} filterByStudents=${filterByStudents}`);
+  console.log(`searching ${masjid_id} ${unit_id} ${nameRegex} ${addressRegex} ${city_regex} ${phone_regex} showInactive=${showInactive} filterByStudents=${filterByStudents}`);
   dbconnect.then(client => {
     let listingdb = client.db('listingdb');
 
@@ -368,6 +369,13 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
 
     if (masjidUnitCondition.length > 0) {
       queryConditions.push({ $and: masjidUnitCondition });
+    }
+
+    // phoneNumber is a sparse field (not present on every listing), so only filter on it
+    // when a phone term was actually searched — otherwise records with no phoneNumber
+    // field would fail to match and get excluded from every search.
+    if (searchCriteria.phone) {
+      queryConditions.push({ phoneNumber: phone_regex });
     }
 
     // Active/inactive filter (default: only active records)
