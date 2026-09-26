@@ -83,7 +83,7 @@ All routes are prefixed with `/api`. See [README.md](README.md) for setup.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/addressList/list/` | List by `?masjid_id=X&unit_id=Y`; excludes inactive |
-| `GET` | `/api/addressList/filter/students/` | Listings with non-empty `students` array |
+| `GET` | `/api/addressList/filter/students/` | Student listings: `isStudent: true` or non-empty `students` array |
 | `GET` | `/api/addressList/filter/inactive/` | Listings where `inactive: true` |
 | `POST` | `/api/addressList/filter/search/` | Advanced multi-field search (see body below) |
 
@@ -94,7 +94,7 @@ All routes are prefixed with `/api`. See [README.md](README.md) for setup.
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/addressList` | Create new listing; auto-assigns `_id` via `database_sequences` |
-| `PUT` | `/api/addressList/:id` | Update `firstName`, `lastName`, `unitId`; increments `version` |
+| `PUT` | `/api/addressList/:id` | Update `firstName`, `lastName`, `unitId` (plus optional fields such as `inactive`, `isStudent`); increments `version` |
 | `PUT` | `/api/addressList/visit/:id` | Record a visit; sets `latestResponse`, pushes to `visitHistory`; sets `inactive=true` if response is `"Duplicate"` |
 | `PUT` | `/api/addressList/bulk/area` | Bulk-set `area` on multiple listings; body: `{ ids: string[], area: string }` |
 | `PATCH` | `/api/addressList/:id/address2` | Update `address2` field only |

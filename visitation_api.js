@@ -131,10 +131,14 @@ addressRouter.route('/addressList/search/address/:address').get((req, res, next)
   })
 });
 
+// A listing counts as a "student" listing if the listing itself is flagged isStudent,
+// or if it has students associated with it.
+const studentCondition = { $or: [{ isStudent: true }, { students: { $exists: true, $ne: [] } }] };
+
 addressRouter.route('/addressList/filter/students/').get((req, res, next) => {
   dbconnect.then(client => {
     let listingdb = client.db('listingdb');
-    const address = listingdb.collection('listings').find({ students: { $exists: true, $ne: [] } },{projection: exclusions}).toArray();
+    const address = listingdb.collection('listings').find(studentCondition,{projection: exclusions}).toArray();
     return address;
   }).then(result => {
     res.json(result);
@@ -249,6 +253,7 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
     if (ethnicity !== undefined && ethnicity !== currentListing.ethnicity) setFields.ethnicity = ethnicity;
     if (notes !== undefined && notes !== currentListing.notes) setFields.notes = notes;
     if (inactive !== undefined) setFields.inactive = inactive;
+    if (req.body.isStudent !== undefined) setFields.isStudent = req.body.isStudent === true;
 
     const { oldWorker, oldWorkerTimeSpent, masturat, massuratTimeSpent } = req.body;
     if (oldWorker !== undefined) setFields.oldWorker = oldWorker;
@@ -387,7 +392,7 @@ addressRouter.route('/addressList/filter/search/').post((req, res, next) => {
 
     // Students filter
     if (filterByStudents === true || filterByStudents === 'true') {
-      queryConditions.push({ students: { $exists: true, $ne: [] } });
+      queryConditions.push(studentCondition);
     }
 
     const address = listingdb.collection('listings').find({

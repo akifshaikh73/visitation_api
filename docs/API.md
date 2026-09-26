@@ -175,7 +175,7 @@ Multi-field search with flexible filtering options.
 **Notes:**
 - If `_id` is provided, all other criteria are ignored
 - `showInactive` — Include inactive listings in results (default: false)
-- `filterByStudents` — Only return listings with non-empty students array
+- `filterByStudents` — Only return student listings: `isStudent: true` or a non-empty students array
 
 **Response:**
 ```json
@@ -257,6 +257,8 @@ Update listing name and unit information. Auto-increments `version`.
   }
 }
 ```
+
+Optional fields are also accepted and saved when present, including `phoneNumber`, `bestTime`, `profession`, `ethnicity`, `notes`, `inactive` and `isStudent` (boolean — the listing itself is a student).
 
 **Error Responses:**
 - `404` — Listing not found

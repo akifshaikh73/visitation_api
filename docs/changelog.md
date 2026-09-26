@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## 2026-09-26
+
+- **feat(search):** Add optional `phone` criterion to `POST /addressList/filter/search/`, only applied when a phone term is provided (`phoneNumber` is sparse).
+- **feat(address):** Add `isStudent` flag — saved via `PUT /addressList/:id`; `filterByStudents` and `GET /addressList/filter/students/` now match listings with `isStudent: true` or a non-empty `students` array.
+
 ## 2026-08-12
 
 - **da5dbb9** Move Duplicate inactive logic from PUT listing to PUT visit
