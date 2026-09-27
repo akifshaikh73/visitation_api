@@ -136,6 +136,26 @@ Content-Type: {{contentType}}
   "lastName": "Smith"
 }
 
+### 18a. Replace students on a listing (goesTo: madrasa | high-school | college | work; yob optional)
+PUT {{baseUrl}}/addressList/{{addressID}}/students
+Content-Type: {{contentType}}
+
+{
+  "students": [
+    { "name": "Usman", "goesTo": "high-school", "yob": 2009 },
+    { "name": "Aisha", "goesTo": "work", "yob": 2001 },
+    { "name": "Bilal" }
+  ]
+}
+
+### 18b. Replace students - invalid goesTo / yob (expect 400)
+PUT {{baseUrl}}/addressList/{{addressID}}/students
+Content-Type: {{contentType}}
+
+{
+  "students": [ { "name": "Usman", "goesTo": "College-University", "yob": 1800 } ]
+}
+
 ###
 ### ERROR/EDGE CASES
 ###

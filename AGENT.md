@@ -95,6 +95,7 @@ All routes are prefixed with `/api`. See [README.md](README.md) for setup.
 |--------|------|-------------|
 | `POST` | `/api/addressList` | Create new listing; auto-assigns `_id` via `database_sequences` |
 | `PUT` | `/api/addressList/:id` | Update `firstName`, `lastName`, `unitId` (plus optional fields such as `inactive`, `isStudent`); increments `version` |
+| `PUT` | `/api/addressList/:id/students` | Replace the whole `students` array (`[{ name, goesTo?, yob? }]`, validated by `validateStudents`); increments `version` |
 | `PUT` | `/api/addressList/visit/:id` | Record a visit; sets `latestResponse`, pushes to `visitHistory`; sets `inactive=true` if response is `"Duplicate"` |
 | `PUT` | `/api/addressList/bulk/area` | Bulk-set `area` on multiple listings; body: `{ ids: string[], area: string }` |
 | `PATCH` | `/api/addressList/:id/address2` | Update `address2` field only |
@@ -272,7 +273,7 @@ Usage:
 - `version` (long) — incremented on every update (optimistic concurrency)
 - `lastModifiedDate` (Date)
 - `visitHistory` (array) — `{ createdDate, response, comments }`
-- `students` (array)
+- `students` (array) — `{ name, goesTo?, yob? }`; `goesTo` ∈ `madrasa | high-school | college | work` (legacy slugs); written only via `PUT /api/addressList/:id/students` or on create
 - `latitude`, `longitude` (number)
 - `sequenceNumber`, `_class`, `listingSource`, `deliverycode` — legacy/internal, excluded from most responses via `exclusions` projection
 

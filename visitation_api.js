@@ -43,6 +43,51 @@ async function generateNextSequence(db) {
   return parseInt(result.seq);
 }
 
+// Stored as lowercase slugs to match legacy data; labels live in the UI.
+const GOES_TO_VALUES = ['madrasa', 'high-school', 'college', 'work'];
+const MAX_STUDENTS = 30;
+
+/**
+ * Validate and normalize a listing's students array to [{ name, goesTo?, yob? }].
+ * Blank goesTo / yob are omitted (legacy "none" state). Unknown keys are dropped.
+ * @param {unknown} students
+ * @returns {{ students: Array<{name: string, goesTo?: string, yob?: number}> } | { error: string }}
+ */
+function validateStudents(students) {
+  if (!Array.isArray(students)) return { error: 'students must be an array' };
+  if (students.length > MAX_STUDENTS) return { error: `students cannot have more than ${MAX_STUDENTS} entries` };
+
+  const currentYear = new Date().getFullYear();
+  const normalized = [];
+  for (let i = 0; i < students.length; i++) {
+    const s = students[i];
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return { error: `students[${i}] must be an object` };
+
+    const name = typeof s.name === 'string' ? s.name.trim() : '';
+    if (!name) return { error: `students[${i}].name is required` };
+    if (name.length > 100) return { error: `students[${i}].name must be at most 100 characters` };
+    const student = { name };
+
+    if (s.goesTo !== undefined && s.goesTo !== null && s.goesTo !== '') {
+      if (!GOES_TO_VALUES.includes(s.goesTo)) {
+        return { error: `students[${i}].goesTo must be one of ${GOES_TO_VALUES.join(', ')}` };
+      }
+      student.goesTo = s.goesTo;
+    }
+
+    if (s.yob !== undefined && s.yob !== null && s.yob !== '') {
+      const yob = typeof s.yob === 'string' && /^\d+$/.test(s.yob.trim()) ? parseInt(s.yob, 10) : s.yob;
+      if (!Number.isInteger(yob) || yob < 1900 || yob > currentYear) {
+        return { error: `students[${i}].yob must be a year between 1900 and ${currentYear}` };
+      }
+      student.yob = yob;
+    }
+
+    normalized.push(student);
+  }
+  return { students: normalized };
+}
+
 const connectionstring = process.env.MONGODB_URI || 'mongodb://localhost:27017/listingdb';
 
 console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
@@ -204,6 +249,35 @@ addressRouter.get('/addressList/:id/nearby', async (req, res, next) => {
 
     res.json(results);
   } catch (err) { next(err); }
+});
+
+// Replaces the listing's whole students array (last write wins).
+addressRouter.route('/addressList/:id/students').put(async (req, res, next) => {
+  const id = req.params.id;
+  const validated = validateStudents(req.body ? req.body.students : undefined);
+  if (validated.error) {
+    res.status(400).json({ error: validated.error });
+    return;
+  }
+
+  try {
+    const client = await dbconnect;
+    const listings = client.db('listingdb').collection('listings');
+    const updated = await listings.findOneAndUpdate(
+      { _id: id },
+      [{ $set: { students: validated.students, version: { $add: [{ $convert: { input: '$version', to: 'long', onError: 0, onNull: 0 } }, 1] } } }],
+      { returnDocument: 'after', projection: { students: 1, version: 1 } }
+    );
+    if (!updated) {
+      res.status(404).json({ error: `Listing ${id} not found` });
+      return;
+    }
+    console.log(`updateStudents ${id} - count: ${updated.students.length}`);
+    res.json(updated);
+  } catch (err) {
+    console.error(`updateStudents ${id} error: ${err.message}`);
+    next(err);
+  }
 });
 
 addressRouter.route('/addressList/:id').put((req, res, next) => {
@@ -500,6 +574,16 @@ addressRouter.route('/addressList').post((req, res, next) => {
   const request_body = req.body;
   console.log('addAddress payload:', request_body);
 
+  let students;
+  if (request_body.students !== undefined) {
+    const validated = validateStudents(request_body.students);
+    if (validated.error) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
+    students = validated.students;
+  }
+
   dbconnect.then(async client => {
     let listingdb = client.db('listingdb');
 
@@ -510,6 +594,7 @@ addressRouter.route('/addressList').post((req, res, next) => {
     newAddress._id = newId;
     delete newAddress.visitedDate;
     delete newAddress.source; // source is not part of the schema; use listingSource instead
+    if (students !== undefined) newAddress.students = students;
 
     newAddress.inactive = false;
     newAddress._class = "com.markaz.visitation.model.Listing";

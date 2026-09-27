@@ -130,7 +130,7 @@ Get listings with non-empty `students` array.
 ```json
 {
   "listings": [
-    { "_id": "507f1f77bcf86cd799439011", "students": ["Ahmad", "Fatima"], ... }
+    { "_id": "507f1f77bcf86cd799439011", "students": [{ "name": "Ahmad", "goesTo": "college", "yob": 2005 }], ... }
   ]
 }
 ```
@@ -207,10 +207,12 @@ Create a new address listing. Auto-assigns `_id` via `database_sequences`.
   "unitId": "2",
   "latestResponse": "",
   "visitedDate": "2025-08-18",
-  "students": [],
+  "students": [{ "name": "Ahmad", "goesTo": "madrasa", "yob": 2012 }],
   "inactive": false
 }
 ```
+
+`students` is optional. When present it is validated and normalized exactly like `PUT /api/addressList/:id/students` (400 on invalid entries).
 
 **Response:**
 ```json
@@ -224,7 +226,41 @@ Create a new address listing. Auto-assigns `_id` via `database_sequences`.
 ```
 
 **Error Responses:**
-- `400` — Missing required fields
+- `400` — Missing required fields, or invalid `students`
+
+---
+
+### Replace Listing Students
+**`PUT /api/addressList/:id/students`**
+
+Replaces the listing's entire `students` array (last write wins) and auto-increments `version`. Used for add, edit and remove — the client sends the full updated list.
+
+Each student:
+- `name` (string, required) — trimmed, 1–100 characters
+- `goesTo` (string, optional) — one of `madrasa`, `high-school`, `college`, `work` (UI labels: Madrasa, High-School, College-University, Work). Omitted when blank.
+- `yob` (integer, optional) — year of birth, 1900 to the current year. Numeric strings are accepted. Omitted when blank.
+
+Unknown keys are dropped; at most 30 students.
+
+**Request Body:**
+```json
+{
+  "students": [
+    { "name": "Usman", "goesTo": "high-school", "yob": 2009 },
+    { "name": "Aisha", "goesTo": "work", "yob": 2001 },
+    { "name": "Bilal" }
+  ]
+}
+```
+
+**Response:**
+```json
+{ "_id": "90953", "students": [ { "name": "Usman", "goesTo": "high-school", "yob": 2009 }, ... ], "version": 7 }
+```
+
+**Error Responses:**
+- `400` — Validation error, e.g. `{ "error": "students[1].yob must be a year between 1900 and 2026" }`
+- `404` — Listing not found
 
 ---
 

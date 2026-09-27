@@ -280,6 +280,58 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /addressList/{id}/students:
+    put:
+      tags: [Listings]
+      summary: Replace a listing's students
+      description: Replaces the whole students array (last write wins) with a validated, normalized copy. Unknown keys are dropped. Version is auto-incremented.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [students]
+              properties:
+                students:
+                  type: array
+                  maxItems: 30
+                  items:
+                    $ref: '#/components/schemas/Student'
+            example:
+              students:
+                - { name: Usman, goesTo: high-school, yob: 2009 }
+                - { name: Aisha, goesTo: work, yob: 2001 }
+                - { name: Bilal }
+      responses:
+        '200':
+          description: Updated students and version
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                  students:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Student'
+                  version:
+                    type: integer
+        '400':
+          description: Validation error (message names the offending index)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /addressList/{id}/address2:
     patch:
       tags: [Listings]
@@ -550,7 +602,7 @@ components:
         students:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/Student'
         visitHistory:
           type: array
           items:
@@ -597,6 +649,29 @@ components:
         listingSource:
           type: string
           default: "gsheets.unmatched.v0"
+        students:
+          type: array
+          maxItems: 30
+          description: Optional; validated the same way as PUT /addressList/{id}/students
+          items:
+            $ref: '#/components/schemas/Student'
+
+    Student:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        goesTo:
+          type: string
+          enum: [madrasa, high-school, college, work]
+          description: "UI labels: Madrasa, High-School, College-University, Work. Omitted when blank."
+        yob:
+          type: integer
+          minimum: 1900
+          description: Year of birth (up to the current year). Omitted when blank.
 
     VisitRequest:
       type: object
