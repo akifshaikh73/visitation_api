@@ -291,7 +291,7 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
 
     const currentListing = await listings.findOne(
       { _id: id },
-      { projection: { unitId: 1, firstName: 1, lastName: 1, phoneNumber: 1, bestTime: 1, profession: 1, ethnicity: 1, notes: 1 } }
+      { projection: { unitId: 1, firstName: 1, lastName: 1, phoneNumber: 1, bestTime: 1, profession: 1, ethnicity: 1, notes: 1, address1: 1, address2: 1, city: 1, state: 1, zipcode: 1 } }
     );
     if (!currentListing) {
       res.status(404).json({ error: `Listing ${id} not found` });
@@ -326,6 +326,43 @@ addressRouter.route('/addressList/:id').put((req, res, next) => {
     if (profession !== undefined && profession !== currentListing.profession) setFields.profession = profession;
     if (ethnicity !== undefined && ethnicity !== currentListing.ethnicity) setFields.ethnicity = ethnicity;
     if (notes !== undefined && notes !== currentListing.notes) setFields.notes = notes;
+
+    // Address fields. address1 is required once set; address2/city/state/zipcode may be cleared with ''.
+    const { address1, address2, city, state, zipcode } = req.body;
+    if (address1 !== undefined) {
+      const next = typeof address1 === 'string' ? address1.trim() : '';
+      if (!next) {
+        res.status(400).json({ error: 'address1 cannot be empty' });
+        return null;
+      }
+      if (next !== currentListing.address1) setFields.address1 = next;
+    }
+    if (address2 !== undefined) {
+      const next = String(address2 ?? '').trim();
+      if (next !== (currentListing.address2 || '')) setFields.address2 = next;
+    }
+    if (city !== undefined) {
+      const next = String(city ?? '').trim();
+      if (next !== (currentListing.city || '')) setFields.city = next;
+    }
+    if (state !== undefined) {
+      const next = String(state ?? '').trim().toUpperCase();
+      if (next && !/^[A-Z]{2}$/.test(next)) {
+        res.status(400).json({ error: 'state must be a 2-letter code' });
+        return null;
+      }
+      if (next !== (currentListing.state || '')) setFields.state = next;
+    }
+    if (zipcode !== undefined) {
+      const raw = String(zipcode ?? '').trim();
+      if (raw && !/^\d{5}(-\d{4})?$/.test(raw)) {
+        res.status(400).json({ error: 'zipcode must be 5 digits (optionally ZIP+4)' });
+        return null;
+      }
+      // Stored as a number, same as POST /addressList.
+      const next = parseInt(raw, 10) || 0;
+      if (next !== currentListing.zipcode) setFields.zipcode = next;
+    }
     if (inactive !== undefined) setFields.inactive = inactive;
     if (req.body.isStudent !== undefined) setFields.isStudent = req.body.isStudent === true;
 

@@ -245,8 +245,8 @@ paths:
   /addressList/{id}:
     put:
       tags: [Listings]
-      summary: Update a listing's name and/or unit
-      description: Only fields that differ from the current value are written. Version is auto-incremented.
+      summary: Update a listing's name, unit, contact or address fields
+      description: Only fields that differ from the current value are written. Version is auto-incremented. Address fields are trimmed; latitude/longitude are not recalculated.
       parameters:
         - $ref: '#/components/parameters/ListingId'
       requestBody:
@@ -262,15 +262,37 @@ paths:
                   type: string
                 unitId:
                   type: integer
+                address1:
+                  type: string
+                  minLength: 1
+                  description: Street address; cannot be empty
+                address2:
+                  type: string
+                  description: Apt / Unit; '' clears it
+                city:
+                  type: string
+                state:
+                  type: string
+                  pattern: '^([A-Za-z]{2})?$'
+                  description: 2-letter code, stored upper-case; '' clears it
+                zipcode:
+                  type: string
+                  pattern: '^(\d{5}(-\d{4})?)?$'
+                  description: 5 digits or ZIP+4; stored as an integer ('' stores 0)
             example:
               firstName: Ahmed
               lastName: Khan
               unitId: 3
+              address1: 9 New St
+              address2: Apt 2
+              city: Addison
+              state: IL
+              zipcode: '60101'
       responses:
         '200':
           $ref: '#/components/responses/UpdateResult'
         '400':
-          description: unitId is not a valid integer
+          description: unitId is not a valid integer, address1 is empty, or state/zipcode is invalid
           content:
             application/json:
               schema:

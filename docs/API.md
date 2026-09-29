@@ -296,9 +296,17 @@ Update listing name and unit information. Auto-increments `version`.
 
 Optional fields are also accepted and saved when present, including `phoneNumber`, `bestTime`, `profession`, `ethnicity`, `notes`, `inactive` and `isStudent` (boolean — the listing itself is a student).
 
+Address fields can be edited too. Values are trimmed, and only fields that differ from the stored value are written:
+- `address1`: required once sent, cannot be empty.
+- `address2`, `city`: `''` clears the field.
+- `state`: upper-cased, must be empty or a 2-letter code.
+- `zipcode`: must be empty, 5 digits or ZIP+4; stored as a number, the same as create (`''` → `0`).
+
+Latitude/longitude are **not** recalculated when the address changes.
+
 **Error Responses:**
 - `404` — Listing not found
-- `400` — Invalid request
+- `400` — Invalid request (bad `unitId`, empty `address1`, invalid `state` or `zipcode`)
 
 ---
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## 2026-09-28
+
+- **feat(address):** `PUT /addressList/:id` now accepts `address1`, `address2`, `city`, `state` and `zipcode` (trimmed; `state` upper-cased and 2 letters; `zipcode` 5 digits or ZIP+4, stored as a number; `address1` can't be empty). Coordinates are not recalculated.
+
 ## 2026-09-26
 
 - **feat(search):** Add optional `phone` criterion to `POST /addressList/filter/search/`, only applied when a phone term is provided (`phoneNumber` is sparse).
